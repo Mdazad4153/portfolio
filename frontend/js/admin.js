@@ -1,4 +1,4 @@
-const API = '/api';
+const API = 'https://portfolio-fbhl.onrender.com/api';
 let token = localStorage.getItem('adminToken');
 const PLACEHOLDER_IMAGE = 'assets/profile-placeholder.svg';
 
