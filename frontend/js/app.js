@@ -1,4 +1,4 @@
-const API = 'http://localhost:5000/api';
+const API = 'https://portfolio-fbhl.onrender.com/api';
 
 // State
 let allSkills = [], allProjects = [], allServices = [], allCerts = [];

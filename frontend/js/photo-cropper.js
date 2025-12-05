@@ -398,7 +398,7 @@ function uploadCroppedImage() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('http://localhost:5000/api/profile/image', {
+      const res = await fetch('https://portfolio-fbhl.onrender.com/api/profile/image', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
