@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Md Azad Ansari - CSE Student, Web Developer, ADCA & KYP Certified">
+    <title>Md Azad | Portfolio</title>
+    <link rel="icon" href="assets/profile-placeholder.svg" type="image/svg+xml">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+        <div class="container">
+            <a href="#home" class="logo">
+                <span class="logo-icon">MA</span>
+                <span class="logo-text">Md Azad</span>
+            </a>
+            <div class="nav-menu" id="navMenu">
+                <a href="#home" class="nav-link active">Home</a>
+                <a href="#about" class="nav-link">About</a>
+                <a href="#skills" class="nav-link">Skills</a>
+                <a href="#education" class="nav-link">Education</a>
+                <a href="#projects" class="nav-link">Projects</a>
+                <a href="#services" class="nav-link">Services</a>
+                <a href="#certificates" class="nav-link">Certificates</a>
+                <a href="#contact" class="nav-link">Contact</a>
+            </div>
+            <div class="nav-right">
+                <div class="theme-selector" id="themeSelector">
+                    <button class="theme-btn active" data-theme="dark" title="Dark"><i class="fas fa-moon"></i></button>
+                    <button class="theme-btn" data-theme="system" title="System"><i class="fas fa-desktop"></i></button>
+                    <button class="theme-btn" data-theme="light" title="Light"><i class="fas fa-sun"></i></button>
+                </div>
+                <a href="admin.html" class="icon-btn" title="Admin"><i class="fas fa-user-shield"></i></a>
+                <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge" id="heroBadge"><span class="pulse"></span> Available for Work</div>
+                <h1 class="hero-title">
+                    <span class="greeting">Assalamu Alaikum, I'm</span>
+                    <span class="name" id="heroName">Md Azad</span>
+                </h1>
+                <p class="hero-subtitle"><span id="typingText">Web Developer</span><span class="typing-cursor"></span>
+                </p>
+                <p class="hero-desc" id="heroBio">A passionate CSE student at Government Polytechnic Chhapra, skilled in
+                    AI tools, web development, and MS Office. ADCA & KYP certified.</p>
+                <div class="hero-actions">
+                    <a href="#projects" class="btn btn-primary"><i class="fas fa-rocket"></i> View Projects</a>
+                    <a href="#contact" class="btn btn-outline"><i class="fas fa-envelope"></i> Contact Me</a>
+                </div>
+                <div class="hero-social" id="heroSocial">
+                    <a href="#" id="github" class="social-btn" title="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="#" id="linkedin" class="social-btn" title="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                    <a href="#" id="instagram" class="social-btn" title="Instagram"><i class="fab fa-instagram"></i></a>
+                    <a href="#" id="youtube" class="social-btn" title="YouTube"><i class="fab fa-youtube"></i></a>
+                    <a href="#" id="whatsapp" class="social-btn whatsapp" title="WhatsApp"><i
+                            class="fab fa-whatsapp"></i></a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-image" id="heroImage">
+                    <div class="hero-initials" id="heroInitials">MA</div>
+                    <img src="" alt="Md Azad" id="profileImg" style="display:none">
+                </div>
+                <div class="hero-decoration">
+                    <div class="deco-circle"></div>
+                    <div class="deco-dots"></div>
+                </div>
+            </div>
+        </div>
+        <div class="hero-scroll"><a href="#about"><span></span></a></div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">About Me</span>
+                <h2 class="section-title">Know Me Better</h2>
+            </div>
+            <div class="about-grid">
+                <div class="about-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-folder-open"></i></div>
+                        <div class="stat-info">
+                            <h3 id="statProjects">15+</h3>
+                            <p>Projects Done</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                        <div class="stat-info">
+                            <h3 id="statExp">2+</h3>
+                            <p>Years Learning</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-award"></i></div>
+                        <div class="stat-info">
+                            <h3 id="statCerts">8+</h3>
+                            <p>Certificates</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-content">
+                    <div class="about-text" id="aboutText">
+                        <p>Hi! I'm <strong>Md Azad Ansari</strong>, a dedicated Computer Science & Engineering student
+                            at <strong>Government Polytechnic Chhapra</strong>, currently in my 4th semester.</p>
+                        <p>I have completed <strong>ADCA</strong> (Advance Diploma in Computer Application) and
+                            <strong>KYP</strong> (Kaushal Yuva Program) certification. I'm proficient in various AI
+                            tools, Microsoft Office Suite, and web development.
+                        </p>
+                    </div>
+                    <a href="#" class="btn btn-primary" id="resumeBtn"><i class="fas fa-download"></i> Download
+                        Resume</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills Section -->
+    <section id="skills" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">My Skills</span>
+                <h2 class="section-title">Technologies I Use</h2>
+            </div>
+            <div class="skills-tabs">
+                <button class="tab-btn active" data-filter="all">All</button>
+                <button class="tab-btn" data-filter="ai">AI Tools</button>
+                <button class="tab-btn" data-filter="office">MS Office</button>
+                <button class="tab-btn" data-filter="frontend">Frontend</button>
+                <button class="tab-btn" data-filter="backend">Backend</button>
+                <button class="tab-btn" data-filter="tools">Tools</button>
+            </div>
+            <div class="skills-grid" id="skillsGrid"></div>
+        </div>
+    </section>
+
+    <!-- Education Section -->
+    <section id="education" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Education</span>
+                <h2 class="section-title">My Learning Journey</h2>
+            </div>
+            <div class="education-list" id="educationList"></div>
+        </div>
+    </section>
+
+    <!-- Projects Section -->
+    <section id="projects" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Portfolio</span>
+                <h2 class="section-title">Featured Projects</h2>
+            </div>
+            <div class="projects-grid" id="projectsGrid"></div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Services</span>
+                <h2 class="section-title">What I Offer</h2>
+            </div>
+            <div class="services-grid" id="servicesGrid"></div>
+        </div>
+    </section>
+
+    <!-- Certificates Section -->
+    <section id="certificates" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Achievements</span>
+                <h2 class="section-title">Certificates & Awards</h2>
+            </div>
+            <div class="certificates-grid" id="certificatesGrid"></div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Contact</span>
+                <h2 class="section-title">Get In Touch</h2>
+            </div>
+            <div class="contact-grid">
+                <div class="contact-info">
+                    <p class="contact-desc">Have a project in mind? Let's work together!</p>
+                    <div class="info-cards">
+                        <div class="info-card">
+                            <div class="info-icon"><i class="fas fa-envelope"></i></div>
+                            <div><span>Email</span>
+                                <p id="contactEmail">mdazad@example.com</p>
+                            </div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-icon"><i class="fas fa-phone"></i></div>
+                            <div><span>Phone</span>
+                                <p id="contactPhone">+91 XXXXXXXXXX</p>
+                            </div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-icon"><i class="fas fa-location-dot"></i></div>
+                            <div><span>Location</span>
+                                <p id="contactLocation">Chhapra, Bihar</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <form class="contact-form card" id="contactForm">
+                    <div class="form-row">
+                        <div class="form-group"><label>Name</label><input type="text" name="name"
+                                placeholder="Your name" required></div>
+                        <div class="form-group"><label>Email</label><input type="email" name="email"
+                                placeholder="Your email" required></div>
+                    </div>
+                    <div class="form-group"><label>Subject</label><input type="text" name="subject"
+                            placeholder="Subject" required></div>
+                    <div class="form-group"><label>Message</label><textarea name="message" rows="4"
+                            placeholder="Your message..." required></textarea></div>
+                    <button type="submit" class="btn btn-primary btn-full"><i class="fas fa-paper-plane"></i> Send
+                        Message</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#home" class="logo">
+                        <span class="logo-icon">MA</span>
+                        <span class="logo-text">Md Azad</span>
+                    </a>
+                    <p class="footer-desc">A passionate CSE student and web developer from Bihar, India. Building
+                        digital experiences with modern technologies.</p>
+                    <div class="footer-social">
+                        <a href="#" id="footerGithub" title="GitHub"><i class="fab fa-github"></i></a>
+                        <a href="#" id="footerLinkedin" title="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#" id="footerInstagram" title="Instagram"><i class="fab fa-instagram"></i></a>
+                        <a href="#" id="footerFacebook" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" id="footerYoutube" title="YouTube"><i class="fab fa-youtube"></i></a>
+                        <a href="#" id="footerTwitter" title="Twitter"><i class="fab fa-twitter"></i></a>
+                        <a href="#" id="footerWhatsapp" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                        <a href="#" id="footerTelegram" title="Telegram"><i class="fab fa-telegram"></i></a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Quick Links</h4>
+                    <a href="#home">Home</a>
+                    <a href="#about">About</a>
+                    <a href="#skills">Skills</a>
+                    <a href="#projects">Projects</a>
+                    <a href="#contact">Contact</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Skills</h4>
+                    <a href="#skills">AI Tools</a>
+                    <a href="#skills">MS Office</a>
+                    <a href="#skills">Web Development</a>
+                    <a href="#skills">Frontend</a>
+                    <a href="#skills">Backend</a>
+                </div>
+                <div class="footer-contact">
+                    <h4>Contact Info</h4>
+                    <p><i class="fas fa-map-marker-alt"></i> Chhapra, Bihar, India</p>
+                    <p><i class="fas fa-envelope"></i> <span id="footerEmail">contact@mdazad.com</span></p>
+                    <p><i class="fas fa-phone"></i> <span id="footerPhone">+91 XXXXXXXXXX</span></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2024 <strong>Md Azad Ansari</strong>. Crafted with <i class="fas fa-heart heart-icon"></i> in
+                    Bihar, India</p>
+                <p class="footer-credit">All Rights Reserved</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to Top -->
+    <button class="back-top" id="backTop"><i class="fas fa-arrow-up"></i></button>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"><i class="fas fa-check-circle"></i><span id="toastMsg"></span></div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
