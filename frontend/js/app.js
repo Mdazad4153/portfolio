@@ -199,6 +199,20 @@ async function loadProfile() {
     document.getElementById('footerPhone').textContent = data.phone;
   }
   if (data.address) document.getElementById('contactLocation').textContent = data.address;
+
+  // Resume Download Button
+  const resumeBtn = document.getElementById('resumeBtn');
+  if (resumeBtn) {
+    if (data.resumeUrl) {
+      const resumeUrl = data.resumeUrl.startsWith('http') ? data.resumeUrl : `${API.replace('/api', '')}${data.resumeUrl}`;
+      resumeBtn.setAttribute('href', resumeUrl);
+      resumeBtn.setAttribute('download', 'Md_Azad_Resume.pdf');
+      resumeBtn.setAttribute('target', '_blank');
+      resumeBtn.style.display = 'inline-flex';
+    } else {
+      resumeBtn.style.display = 'none';
+    }
+  }
 }
 
 async function loadSkills() {

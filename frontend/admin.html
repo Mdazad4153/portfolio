@@ -103,6 +103,7 @@
                 <a href="#" class="nav-item active" data-page="home"><i
                         class="fas fa-home"></i><span>Dashboard</span></a>
                 <a href="#" class="nav-item" data-page="profile"><i class="fas fa-user"></i><span>Profile</span></a>
+                <a href="#" class="nav-item" data-page="media"><i class="fas fa-photo-video"></i><span>Media</span></a>
                 <a href="#" class="nav-item" data-page="skills"><i class="fas fa-code"></i><span>Skills</span></a>
                 <a href="#" class="nav-item" data-page="education"><i
                         class="fas fa-graduation-cap"></i><span>Education</span></a>
@@ -198,27 +199,6 @@
                             <h3>Profile Information</h3>
                         </div>
                         <div class="card-body">
-                            <!-- Profile Photo Upload -->
-                            <div class="photo-upload-section">
-                                <div class="photo-preview" id="photoPreview">
-                                    <span class="photo-initials" id="photoInitials">MA</span>
-                                    <img src="" id="previewImg" alt="Profile">
-                                </div>
-                                <div class="photo-info">
-                                    <h4>Profile Photo</h4>
-                                    <p>Upload a photo for your portfolio hero section</p>
-                                    <div class="photo-actions">
-                                        <label class="btn btn-primary btn-sm">
-                                            <i class="fas fa-upload"></i> Upload Photo
-                                            <input type="file" id="photoInput" accept="image/*" hidden>
-                                        </label>
-                                        <button type="button" class="btn btn-danger btn-sm" id="removePhotoBtn">
-                                            <i class="fas fa-trash"></i> Remove
-                                        </button>
-                                    </div>
-                                    <small class="photo-hint">Recommended: Square image, max 5MB</small>
-                                </div>
-                            </div>
                             <div class="form-row">
                                 <div class="form-group"><label>Display Name</label><input type="text" name="name"
                                         placeholder="Md Azad"></div>
@@ -229,23 +209,32 @@
                                     placeholder="Web Developer"></div>
                             <div class="form-group"><label>Short Bio</label>
                                 <div class="text-toolbar">
-                                    <button type="button" class="btn-tool" onclick="wrapSelection('bio', 'b')"
-                                        title="Bold"><i class="fas fa-bold"></i></button>
-                                    <button type="button" class="btn-tool" onclick="wrapSelection('bio', 'i')"
-                                        title="Italic"><i class="fas fa-italic"></i></button>
-                                    <button type="button" class="btn-tool" onclick="wrapSelection('bio', 'u')"
-                                        title="Underline"><i class="fas fa-underline"></i></button>
+                                    <button type="button" class="btn-tool" data-field="bio" data-tag="b" title="Bold">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" class="btn-tool" data-field="bio" data-tag="i" title="Italic">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" class="btn-tool" data-field="bio" data-tag="u"
+                                        title="Underline">
+                                        <i class="fas fa-underline"></i>
+                                    </button>
                                 </div>
                                 <textarea name="bio" rows="2" placeholder="Brief intro..."></textarea>
                             </div>
                             <div class="form-group"><label>About (Detailed)</label>
                                 <div class="text-toolbar">
-                                    <button type="button" class="btn-tool" onclick="wrapSelection('about', 'b')"
-                                        title="Bold"><i class="fas fa-bold"></i></button>
-                                    <button type="button" class="btn-tool" onclick="wrapSelection('about', 'i')"
-                                        title="Italic"><i class="fas fa-italic"></i></button>
-                                    <button type="button" class="btn-tool" onclick="wrapSelection('about', 'u')"
-                                        title="Underline"><i class="fas fa-underline"></i></button>
+                                    <button type="button" class="btn-tool" data-field="about" data-tag="b" title="Bold">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" class="btn-tool" data-field="about" data-tag="i"
+                                        title="Italic">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" class="btn-tool" data-field="about" data-tag="u"
+                                        title="Underline">
+                                        <i class="fas fa-underline"></i>
+                                    </button>
                                 </div>
                                 <textarea name="about" rows="4" placeholder="Detailed about..."></textarea>
                                 <small style="color: var(--text-muted); font-size: 11px;">Tip: Use formatting buttons to
@@ -298,6 +287,65 @@
                         <div class="card-footer"><button type="submit" class="btn btn-primary"><i
                                     class="fas fa-save"></i> Save Changes</button></div>
                     </form>
+                </div>
+
+                <!-- Media Page (Profile Photo + Resume) -->
+                <div id="mediaPage" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-photo-video"></i> Media Management</h3>
+                        </div>
+                        <div class="card-body">
+                            <!-- Profile Photo Upload -->
+                            <div class="photo-upload-section">
+                                <div class="photo-preview" id="photoPreview">
+                                    <span class="photo-initials" id="photoInitials">MA</span>
+                                    <img src="" id="previewImg" alt="Profile">
+                                </div>
+                                <div class="photo-info">
+                                    <h4>Profile Photo</h4>
+                                    <p>Upload a photo for your portfolio hero section</p>
+                                    <div class="photo-actions">
+                                        <label class="btn btn-primary btn-sm">
+                                            <i class="fas fa-upload"></i> Upload Photo
+                                            <input type="file" id="photoInput" accept="image/*" hidden>
+                                        </label>
+                                        <button type="button" class="btn btn-danger btn-sm" id="removePhotoBtn">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
+                                    </div>
+                                    <small class="photo-hint">Recommended: Square image, max 5MB</small>
+                                </div>
+                            </div>
+
+                            <!-- Resume Upload Section -->
+                            <div class="photo-upload-section" style="margin-top: 32px;">
+                                <div class="photo-preview" id="resumePreview"
+                                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                    <i class="fas fa-file-pdf" style="font-size: 48px; color: white;"></i>
+                                </div>
+                                <div class="photo-info">
+                                    <h4>Resume / CV</h4>
+                                    <p id="resumeStatus">Upload your resume in PDF format</p>
+                                    <div class="photo-actions">
+                                        <label class="btn btn-primary btn-sm">
+                                            <i class="fas fa-upload"></i> Upload Resume
+                                            <input type="file" id="resumeInput" accept=".pdf" hidden>
+                                        </label>
+                                        <button type="button" class="btn btn-success btn-sm" id="downloadResumeBtn"
+                                            style="display: none;">
+                                            <i class="fas fa-download"></i> Download
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-sm" id="removeResumeBtn"
+                                            style="display: none;">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
+                                    </div>
+                                    <small class="photo-hint">Accepted: PDF only, max 10MB</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Skills Page -->
@@ -418,6 +466,34 @@
                 </button>
                 <button class="btn btn-danger" id="photoRemoveConfirmBtn">
                     <i class="fas fa-trash"></i> Remove Photo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resume Remove Confirm Modal -->
+    <div class="delete-confirm-modal" id="resumeRemoveModal">
+        <div class="delete-confirm-container">
+            <div class="delete-confirm-header">
+                <div class="delete-confirm-icon" style="background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);">
+                    <i class="fas fa-file-pdf" style="color: white;"></i>
+                </div>
+                <div class="delete-confirm-header-text">
+                    <h3>Remove Resume</h3>
+                    <p>This action cannot be undone</p>
+                </div>
+            </div>
+            <div class="delete-confirm-body">
+                <p class="delete-confirm-message">
+                    Are you sure you want to remove your resume/CV file?
+                </p>
+            </div>
+            <div class="delete-confirm-footer">
+                <button class="btn btn-outline" id="resumeRemoveCancelBtn">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-danger" id="resumeRemoveConfirmBtn">
+                    <i class="fas fa-trash"></i> Remove Resume
                 </button>
             </div>
         </div>

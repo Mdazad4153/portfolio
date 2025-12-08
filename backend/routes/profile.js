@@ -117,4 +117,23 @@ router.delete('/image', authMiddleware, async (req, res) => {
     }
 });
 
+// @route   DELETE /api/profile/resume
+// @desc    Remove resume
+router.delete('/resume', authMiddleware, async (req, res) => {
+    try {
+        let profile = await Profile.findOne();
+        if (!profile) {
+            return res.status(404).json({ message: 'Profile not found' });
+        }
+
+        // Clear resume
+        profile.resumeUrl = null;
+        await profile.save();
+
+        res.json({ message: 'Resume removed successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
 module.exports = router;

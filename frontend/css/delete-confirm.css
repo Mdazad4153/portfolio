@@ -23,7 +23,7 @@
 }
 
 .delete-confirm-modal.active {
-    display: flex;
+    display: flex !important;
 }
 
 /* Simple Container - Matching Modal Style */

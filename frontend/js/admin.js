@@ -47,11 +47,16 @@ function setupEvents() {
     });
   });
 
-  document.getElementById('profileForm').addEventListener('submit', saveProfile);
+  document.getElementById('profileForm')?.addEventListener('submit', saveProfile);
 
   // Photo upload
-  document.getElementById('photoInput').addEventListener('change', handlePhotoSelect);
-  document.getElementById('removePhotoBtn').addEventListener('click', removePhoto);
+  document.getElementById('photoInput')?.addEventListener('change', handlePhotoSelect);
+  // removePhotoBtn is handled by global event delegation below
+
+  // Resume upload
+  document.getElementById('resumeInput')?.addEventListener('change', handleResumeUpload);
+  document.getElementById('downloadResumeBtn')?.addEventListener('click', downloadResume);
+  // removeResumeBtn is handled by global event delegation below
 
   // Forgot Password Link -> Show Reset Card
   document.getElementById('forgotPasswordLink').addEventListener('click', (e) => {
@@ -72,7 +77,7 @@ function setupEvents() {
   // ================================
   // GLOBAL EVENT DELEGATION
   // ================================
-  // This handles all dynamically generated delete buttons
+  // This handles all dynamically generated buttons
   // Instead of adding individual event listeners to each button,
   // we use one listener on the body element for better performance
   document.body.addEventListener('click', (e) => {
@@ -94,9 +99,50 @@ function setupEvents() {
       }
       return;
     }
+
+    // Handle Resume Remove Button
+    if (e.target.closest('#removeResumeBtn')) {
+      console.log('📄 Resume remove button clicked via delegation');
+      const modal = document.getElementById('resumeRemoveModal');
+      if (modal) {
+        modal.classList.add('active');
+        console.log('📄 Resume remove modal opened');
+      }
+      return;
+    }
+
+    // Handle Photo Remove Button  
+    if (e.target.closest('#removePhotoBtn')) {
+      console.log('📸 Photo remove button clicked via delegation');
+      const modal = document.getElementById('photoRemoveModal');
+      if (modal) {
+        modal.classList.add('active');
+        console.log('📸 Photo remove modal opened');
+      }
+      return;
+    }
+    // Handle Text Formatting Buttons (Bold, Italic, Underline)
+    const toolBtn = e.target.closest('.btn-tool');
+    if (toolBtn) {
+      e.preventDefault();
+      const field = toolBtn.dataset.field;
+      const tag = toolBtn.dataset.tag;
+      if (field && tag) {
+        wrapSelection(field, tag);
+      }
+      return;
+    }
+  });
+
+  // Prevent focus loss when clicking tool buttons (Important for text selection)
+  document.body.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.btn-tool')) {
+      e.preventDefault();
+    }
   });
 
   // Delete modal event listeners
+
   const deleteConfirmBtn = document.getElementById('deleteConfirmBtn');
   const deleteCancelBtn = document.getElementById('deleteCancelBtn');
   const deleteModal = document.getElementById('deleteConfirmModal');
@@ -136,6 +182,26 @@ function setupEvents() {
     });
   }
 
+  // Resume remove modal event listeners
+  const resumeRemoveConfirmBtn = document.getElementById('resumeRemoveConfirmBtn');
+  const resumeRemoveCancelBtn = document.getElementById('resumeRemoveCancelBtn');
+  const resumeRemoveModal = document.getElementById('resumeRemoveModal');
+
+  if (resumeRemoveConfirmBtn) {
+    resumeRemoveConfirmBtn.addEventListener('click', confirmResumeRemove);
+  }
+
+  if (resumeRemoveCancelBtn) {
+    resumeRemoveCancelBtn.addEventListener('click', cancelResumeRemove);
+  }
+
+  if (resumeRemoveModal) {
+    // Close on backdrop click
+    resumeRemoveModal.addEventListener('click', (e) => {
+      if (e.target === resumeRemoveModal) cancelResumeRemove();
+    });
+  }
+
   // Close modal on Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -144,6 +210,9 @@ function setupEvents() {
       }
       if (photoRemoveModal && photoRemoveModal.classList.contains('active')) {
         cancelPhotoRemove();
+      }
+      if (resumeRemoveModal && resumeRemoveModal.classList.contains('active')) {
+        cancelResumeRemove();
       }
     }
   });
@@ -283,6 +352,7 @@ async function fetchAuth(url, options = {}) {
 async function loadAllData() {
   loadStats();
   loadProfile();
+  loadMedia(); // Load photo and resume
   loadSkills();
   loadEducation();
   loadProjects();
@@ -362,6 +432,59 @@ async function loadProfile() {
       if (photoInitials) photoInitials.style.display = 'none';
       if (removeBtn) removeBtn.style.display = 'none';
     }
+
+    // Show current resume if exists
+    if (d.resumeUrl) {
+      window.currentResumeUrl = d.resumeUrl;
+      const fileName = d.resumeUrl.split('/').pop();
+      document.getElementById('resumeStatus').textContent = fileName || 'Resume.pdf';
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+    } else {
+      document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+      document.getElementById('downloadResumeBtn').style.display = 'none';
+      document.getElementById('removeResumeBtn').style.display = 'none';
+      window.currentResumeUrl = null;
+    }
+  } catch { }
+}
+
+// Load Media (Photo & Resume) - separate function for Media page
+async function loadMedia() {
+  try {
+    const res = await fetch(`${API}/profile`);
+    const d = await res.json();
+
+    // Show current photo or placeholder
+    const previewImg = document.getElementById('previewImg');
+    const photoInitials = document.getElementById('photoInitials');
+    const removeBtn = document.getElementById('removePhotoBtn');
+    if (d.profileImage) {
+      previewImg.src = d.profileImage.startsWith('http') ? d.profileImage : `${API.replace('/api', '')}${d.profileImage}`;
+      previewImg.style.display = 'block';
+      if (photoInitials) photoInitials.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else {
+      // Show placeholder SVG when no profile image
+      previewImg.src = PLACEHOLDER_IMAGE;
+      previewImg.style.display = 'block';
+      if (photoInitials) photoInitials.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+
+    // Show current resume if exists
+    if (d.resumeUrl) {
+      window.currentResumeUrl = d.resumeUrl;
+      const fileName = d.resumeUrl.split('/').pop();
+      document.getElementById('resumeStatus').textContent = fileName || 'Resume.pdf';
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+    } else {
+      document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+      document.getElementById('downloadResumeBtn').style.display = 'none';
+      document.getElementById('removeResumeBtn').style.display = 'none';
+      window.currentResumeUrl = null;
+    }
   } catch { }
 }
 
@@ -440,6 +563,117 @@ function cancelPhotoRemove() {
   document.getElementById('photoRemoveModal').classList.remove('active');
   showToast('❌ Photo removal cancelled');
   console.log('✖ Photo removal cancelled');
+}
+
+// ================================
+// RESUME FUNCTIONS
+// ================================
+
+// Handle resume upload
+async function handleResumeUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.type !== 'application/pdf') {
+    showToast('❌ Please select a PDF file');
+    e.target.value = '';
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('❌ File size must be less than 10MB');
+    e.target.value = '';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('resume', file);
+
+  try {
+    showToast('⏳ Uploading resume...');
+
+    const res = await fetch(`${API}/profile/resume`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      window.currentResumeUrl = data.resumeUrl;
+      document.getElementById('resumeStatus').textContent = file.name;
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+      showToast('✅ Resume uploaded successfully!');
+      console.log('✅ Resume uploaded:', data.resumeUrl);
+    } else {
+      const err = await res.json();
+      showToast('❌ ' + (err.message || 'Upload failed'));
+    }
+  } catch (error) {
+    console.error('Resume upload error:', error);
+    showToast('❌ Connection error');
+  }
+
+  e.target.value = '';
+}
+
+// Download resume
+function downloadResume() {
+  if (window.currentResumeUrl) {
+    const url = window.currentResumeUrl.startsWith('http')
+      ? window.currentResumeUrl
+      : `${API.replace('/api', '')}${window.currentResumeUrl}`;
+    window.open(url, '_blank');
+    showToast('📥 Opening resume...');
+  } else {
+    showToast('❌ No resume available');
+  }
+}
+
+// Show resume remove modal
+function removeResume() {
+  document.getElementById('resumeRemoveModal').classList.add('active');
+  console.log('📄 Resume remove confirmation shown');
+}
+
+// Actually remove the resume (called when user confirms)
+async function confirmResumeRemove() {
+  document.getElementById('resumeRemoveModal').classList.remove('active');
+
+  try {
+    showToast('⏳ Removing resume...');
+
+    const res = await fetch(`${API}/profile/resume`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.ok) {
+      window.currentResumeUrl = null;
+      document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+      document.getElementById('downloadResumeBtn').style.display = 'none';
+      document.getElementById('removeResumeBtn').style.display = 'none';
+      showToast('✅ Resume removed successfully!');
+      console.log('✅ Resume removed');
+    } else {
+      showToast('❌ Failed to remove resume');
+      console.error('❌ Resume removal failed');
+    }
+  } catch (error) {
+    showToast('❌ Connection error');
+    console.error('❌ Resume removal error:', error);
+  }
+}
+
+// Cancel resume removal
+function cancelResumeRemove() {
+  document.getElementById('resumeRemoveModal').classList.remove('active');
+  showToast('❌ Resume removal cancelled');
+  console.log('✖ Resume removal cancelled');
 }
 
 async function saveProfile(e) {
@@ -1200,6 +1434,162 @@ function wrapSelection(textareaName, tag) {
   textarea.selectionEnd = end + tag.length * 2 + 5; // approx adjustment
 }
 
+// ================================
+// RESUME UPLOAD FUNCTIONALITY
+// ================================
+
+async function handleResumeUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Validate file type
+  if (file.type !== 'application/pdf') {
+    showToast('❌ Please select a PDF file');
+    e.target.value = '';
+    return;
+  }
+
+  // Validate file size (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('❌ File size should be less than 10MB');
+    e.target.value = '';
+    return;
+  }
+
+  try {
+    showToast('⏳ Uploading resume...');
+
+    const formData = new FormData();
+    formData.append('resume', file);
+
+    const res = await fetch(`${API}/profile/resume`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast('✅ Resume uploaded successfully!');
+
+      // Update UI
+      document.getElementById('resumeStatus').textContent = file.name;
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+
+      // Store resume URL
+      window.currentResumeUrl = data.resumeUrl;
+    } else {
+      const err = await res.json();
+      showToast(`❌ ${err.message || 'Upload failed'}`);
+    }
+  } catch (error) {
+    showToast('❌ Connection error');
+    console.error('Resume upload error:', error);
+  }
+
+  e.target.value = '';
+}
+
+function downloadResume() {
+  if (window.currentResumeUrl) {
+    const link = document.createElement('a');
+    link.href = window.currentResumeUrl.startsWith('http')
+      ? window.currentResumeUrl
+      : `${API.replace('/api', '')}${window.currentResumeUrl}`;
+    link.download = 'Resume.pdf';
+    link.target = '_blank';
+    link.click();
+    showToast('📥 Downloading resume...');
+  } else {
+    showToast('❌ No resume found');
+  }
+}
+
+async function removeResume() {
+  if (!confirm('Are you sure you want to remove your resume?')) {
+    return;
+  }
+
+  try {
+    showToast('⏳ Removing resume...');
+
+    // Update profile to clear resume URL
+    await fetchAuth('/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeUrl: '' })
+    });
+
+    showToast('✅ Resume removed successfully!');
+
+    // Update UI
+    document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+    document.getElementById('downloadResumeBtn').style.display = 'none';
+    document.getElementById('removeResumeBtn').style.display = 'none';
+    window.currentResumeUrl = null;
+  } catch (error) {
+    showToast('❌ Error removing resume');
+    console.error('Resume remove error:', error);
+  }
+}
+
+// Toast notification function
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.textContent = msg;
+  toast.classList.add('show');
+
+  // Auto-hide after 3 seconds
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3000);
+}
+
+// ================================
+// TEXT FORMATTING FUNCTION
+// ================================
+// Wraps selected text in textarea with HTML tags (b, i, u)
+function wrapSelection(textareaName, tag) {
+  const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+  if (!textarea) {
+    console.error('Textarea not found:', textareaName);
+    return;
+  }
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selectedText = text.substring(start, end);
+
+  if (!selectedText) {
+    // If no text selected, just insert empty tags and place cursor inside
+    const newText = text.substring(0, start) + `<${tag}></${tag}>` + text.substring(end);
+    textarea.value = newText;
+    textarea.focus();
+    textarea.selectionStart = start + tag.length + 2;
+    textarea.selectionEnd = start + tag.length + 2;
+    showToast('📝 Select text first, then click format button');
+    return;
+  }
+
+  // Wrap selected text with tags
+  const newText = text.substring(0, start) + `<${tag}>` + selectedText + `</${tag}>` + text.substring(end);
+  textarea.value = newText;
+
+  // Restore selection
+  textarea.focus();
+  textarea.selectionStart = start;
+  textarea.selectionEnd = end + tag.length * 2 + 5;
+
+  const tagNames = { 'b': 'Bold', 'i': 'Italic', 'u': 'Underline' };
+  showToast(`✅ ${tagNames[tag] || 'Format'} applied!`);
+}
+
 window.previewProjectImage = previewProjectImage;
 window.removeProjectImage = removeProjectImage;
 window.wrapSelection = wrapSelection;
+
