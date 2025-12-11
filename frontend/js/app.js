@@ -1,5 +1,7 @@
 // Connect to Local Backend
-const API = 'http://localhost:5000/api';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5000/api'
+  : 'https://backend-mu-sage.vercel.app/api';
 
 // State
 let allSkills = [], allProjects = [], allServices = [], allCerts = [];
@@ -409,7 +411,7 @@ function renderProjects() {
     html = toShow.map(p => `
       <div class="project-card ${p.featured ? 'featured' : ''}">
         <div class="project-img">
-          ${p.image ? `<img src="${API.replace('/api', '')}${p.image}" alt="${p.title}">` : `<div class="project-placeholder"><i class="fas fa-folder-open"></i></div>`}
+          ${p.image ? `<img src="${p.image.startsWith('http') ? p.image : API.replace('/api', '') + p.image}" alt="${p.title}">` : `<div class="project-placeholder"><i class="fas fa-folder-open"></i></div>`}
           ${p.featured ? '<span class="featured-badge"><i class="fas fa-star"></i> Featured</span>' : ''}
         </div>
         <div class="project-content">
