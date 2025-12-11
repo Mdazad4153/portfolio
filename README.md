@@ -1,3 +1,22 @@
+# 🌟 Md Azad's Portfolio Website
+
+[![Deployment Status](https://img.shields.io/badge/deployment-ready-brightgreen)](https://github.com)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![MongoDB](https://img.shields.io/badge/database-MongoDB-green)](https://www.mongodb.com/)
+
+> A modern, responsive portfolio website with a powerful admin panel for managing content dynamically.
+
+## 🌐 Live Demo
+
+- **Portfolio:** [Coming Soon - Deploy Now!](DEPLOYMENT.md)
+- **Admin Panel:** [Your-URL/admin.html](DEPLOYMENT.md)
+
+---
+
+## ✨ Features
+
+### Public Portfolio
+- 🏠 Dynamic hero section with greeting
 - 👤 About section with stats
 - 💻 Skills with progress bars
 - 📚 Education timeline

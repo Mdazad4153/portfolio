@@ -1,58 +1,150 @@
 const express = require('express');
 const router = express.Router();
-const Certificate = require('../models/Certificate');
-const auth = require('../middleware/auth');
+const { supabase } = require('../config/supabase');
+const authMiddleware = require('../middleware/auth');
 
-// Get all certificates (public)
+// Helper to convert snake_case to camelCase
+const toCamelCase = (cert) => ({
+    id: cert.id,
+    _id: cert.id,
+    title: cert.title,
+    issuer: cert.issuer,
+    date: cert.date,
+    credentialUrl: cert.credential_url,
+    description: cert.description,
+    order: cert.order,
+    createdAt: cert.created_at,
+    updatedAt: cert.updated_at
+});
+
+// @route   GET /api/certificates
+// @desc    Get all certificates (public)
 router.get('/', async (req, res) => {
     try {
-        const certificates = await Certificate.find().sort({ order: 1, date: -1 });
-        res.json(certificates);
+        const { data: certificates, error } = await supabase
+            .from('certificates')
+            .select('*')
+            .order('order', { ascending: true });
+
+        if (error) throw error;
+
+        res.json(certificates.map(toCamelCase));
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// Get all certificates (admin)
-router.get('/all', auth, async (req, res) => {
+// @route   GET /api/certificates/all
+// @desc    Get all certificates (admin)
+router.get('/all', authMiddleware, async (req, res) => {
     try {
-        const certificates = await Certificate.find().sort({ order: 1 });
-        res.json(certificates);
+        const { data: certificates, error } = await supabase
+            .from('certificates')
+            .select('*')
+            .order('order', { ascending: true });
+
+        if (error) throw error;
+
+        res.json(certificates.map(toCamelCase));
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// Create certificate
-router.post('/', auth, async (req, res) => {
+// @route   GET /api/certificates/:id
+// @desc    Get single certificate
+router.get('/:id', async (req, res) => {
     try {
-        const certificate = new Certificate(req.body);
-        await certificate.save();
-        res.status(201).json(certificate);
+        const { data: cert, error } = await supabase
+            .from('certificates')
+            .select('*')
+            .eq('id', req.params.id)
+            .single();
+
+        if (error) throw error;
+        if (!cert) {
+            return res.status(404).json({ message: 'Certificate not found' });
+        }
+
+        res.json(toCamelCase(cert));
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// Update certificate
-router.put('/:id', auth, async (req, res) => {
+// @route   POST /api/certificates
+// @desc    Create certificate
+router.post('/', authMiddleware, async (req, res) => {
     try {
-        const certificate = await Certificate.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!certificate) return res.status(404).json({ message: 'Certificate not found' });
-        res.json(certificate);
+        const { title, issuer, date, credentialUrl, description, order } = req.body;
+
+        const { data: cert, error } = await supabase
+            .from('certificates')
+            .insert({
+                title,
+                issuer,
+                date: date || null,
+                credential_url: credentialUrl || '',
+                description: description || '',
+                order: order || 0
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json(toCamelCase(cert));
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 
-// Delete certificate
-router.delete('/:id', auth, async (req, res) => {
+// @route   PUT /api/certificates/:id
+// @desc    Update certificate
+router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        const certificate = await Certificate.findByIdAndDelete(req.params.id);
-        if (!certificate) return res.status(404).json({ message: 'Certificate not found' });
-        res.json({ message: 'Certificate deleted' });
+        const { title, issuer, date, credentialUrl, description, order } = req.body;
+
+        const updateData = {};
+        if (title !== undefined) updateData.title = title;
+        if (issuer !== undefined) updateData.issuer = issuer;
+        if (date !== undefined) updateData.date = date;
+        if (credentialUrl !== undefined) updateData.credential_url = credentialUrl;
+        if (description !== undefined) updateData.description = description;
+        if (order !== undefined) updateData.order = order;
+
+        const { data: cert, error } = await supabase
+            .from('certificates')
+            .update(updateData)
+            .eq('id', req.params.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        if (!cert) {
+            return res.status(404).json({ message: 'Certificate not found' });
+        }
+
+        res.json(toCamelCase(cert));
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// @route   DELETE /api/certificates/:id
+// @desc    Delete certificate
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        const { error } = await supabase
+            .from('certificates')
+            .delete()
+            .eq('id', req.params.id);
+
+        if (error) throw error;
+
+        res.json({ message: 'Certificate deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
 

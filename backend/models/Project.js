@@ -48,6 +48,10 @@ const projectSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    views: {
+        type: Number,
+        default: 0
+    },
     completedDate: {
         type: Date,
         default: Date.now

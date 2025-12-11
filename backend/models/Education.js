@@ -21,6 +21,10 @@ const educationSchema = new mongoose.Schema({
         type: String,
         default: 'Present'
     },
+    websiteUrl: {
+        type: String,
+        default: ''
+    },
     grade: {
         type: String,
         default: ''

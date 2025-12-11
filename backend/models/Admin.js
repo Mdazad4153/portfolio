@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const adminSchema = new mongoose.Schema({
     email: {
@@ -17,6 +18,13 @@ const adminSchema = new mongoose.Schema({
     },
     lastLogin: {
         type: Date
+    },
+    loginAttempts: {
+        type: Number,
+        default: 0
+    },
+    lockUntil: {
+        type: Date
     }
 }, { timestamps: true });
 
@@ -30,6 +38,15 @@ adminSchema.pre('save', async function (next) {
 // Compare password method
 adminSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate Auth Token
+adminSchema.methods.generateAuthToken = function () {
+    return jwt.sign(
+        { id: this._id, email: this.email },
+        process.env.JWT_SECRET || 'fallback_secret',
+        { expiresIn: '7d' }
+    );
 };
 
 module.exports = mongoose.model('Admin', adminSchema);

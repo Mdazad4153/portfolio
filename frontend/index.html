@@ -4,16 +4,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Md Azad Ansari - CSE Student, Web Developer, ADCA & KYP Certified">
-    <title>Md Azad | Portfolio</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description"
+        content="Md Azad Ansari - CSE Student at Government Polytechnic Chhapra, Web Developer, ADCA & KYP Certified. Expert in AI tools, web development, and modern technologies.">
+    <meta name="keywords"
+        content="Md Azad, Md Azad Ansari, Web Developer, CSE Student, Portfolio, Bihar, Chhapra, Frontend Developer, AI Tools, ADCA, KYP">
+    <meta name="author" content="Md Azad Ansari">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#6366f1">
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Md Azad Ansari - Portfolio">
+    <meta property="og:description"
+        content="CSE Student & Web Developer from Bihar, India. Explore my projects, skills, and certifications.">
+    <meta property="og:image" content="assets/og-image.png">
+    <meta property="og:url" content="https://mdazad.netlify.app">
+    <meta property="og:site_name" content="Md Azad Portfolio">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Md Azad Ansari - Portfolio">
+    <meta name="twitter:description" content="CSE Student & Web Developer from Bihar, India.">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://mdazad.netlify.app">
+
+    <title>Md Azad Ansari | CSE Student & Web Developer Portfolio</title>
+    <link rel="icon" href="assets/profile-placeholder.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/profile-placeholder.svg">
+
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "name": "Md Azad Ansari",
+      "jobTitle": "CSE Student & Web Developer",
+      "description": "Computer Science student and web developer from Bihar, India",
+      "url": "https://mdazad.netlify.app",
+      "sameAs": [
+        "https://github.com/mdazad4153",
+        "https://linkedin.com/in/mdazad4153"
+      ],
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Chhapra",
+        "addressRegion": "Bihar",
+        "addressCountry": "India"
+      }
+    }
+    </script>
 </head>
 
 <body>
-    <!-- Loader -->
-    <div id="loader" class="loader">
+
+    <!-- Page Loader -->
+    <div class="loader" id="loader">
         <div class="loader-content">
             <div class="loader-logo">MA</div>
             <div class="loader-bar">
@@ -23,30 +80,35 @@
     </div>
 
     <!-- Navbar -->
-    <nav class="navbar" id="navbar">
+    <nav class="navbar" id="navbar" role="navigation" aria-label="Main navigation">
         <div class="container">
-            <a href="#home" class="logo">
+            <a href="#home" class="logo" aria-label="Md Azad - Home">
                 <span class="logo-icon">MA</span>
                 <span class="logo-text">Md Azad</span>
             </a>
-            <div class="nav-menu" id="navMenu">
-                <a href="#home" class="nav-link active">Home</a>
-                <a href="#about" class="nav-link">About</a>
-                <a href="#skills" class="nav-link">Skills</a>
-                <a href="#education" class="nav-link">Education</a>
-                <a href="#projects" class="nav-link">Projects</a>
-                <a href="#services" class="nav-link">Services</a>
-                <a href="#certificates" class="nav-link">Certificates</a>
-                <a href="#contact" class="nav-link">Contact</a>
+            <div class="nav-menu" id="navMenu" role="menu">
+                <a href="#home" class="nav-link active" role="menuitem">Home</a>
+                <a href="#about" class="nav-link" role="menuitem">About</a>
+                <a href="#skills" class="nav-link" role="menuitem">Skills</a>
+                <a href="#education" class="nav-link" role="menuitem">Education</a>
+                <a href="#projects" class="nav-link" role="menuitem">Projects</a>
+                <a href="#services" class="nav-link" role="menuitem">Services</a>
+                <a href="#certificates" class="nav-link" role="menuitem">Certificates</a>
+                <a href="#contact" class="nav-link" role="menuitem">Contact</a>
             </div>
             <div class="nav-right">
-                <div class="theme-selector" id="themeSelector">
-                    <button class="theme-btn active" data-theme="dark" title="Dark"><i class="fas fa-moon"></i></button>
-                    <button class="theme-btn" data-theme="system" title="System"><i class="fas fa-desktop"></i></button>
-                    <button class="theme-btn" data-theme="light" title="Light"><i class="fas fa-sun"></i></button>
+                <div class="theme-selector" id="themeSelector" role="group" aria-label="Theme selection">
+                    <button class="theme-btn active" data-theme="dark" title="Dark" aria-label="Dark theme"><i
+                            class="fas fa-moon"></i></button>
+                    <button class="theme-btn" data-theme="system" title="System" aria-label="System theme"><i
+                            class="fas fa-desktop"></i></button>
+                    <button class="theme-btn" data-theme="light" title="Light" aria-label="Light theme"><i
+                            class="fas fa-sun"></i></button>
                 </div>
-                <a href="admin.html" class="icon-btn" title="Admin"><i class="fas fa-user-shield"></i></a>
-                <button class="menu-btn" id="menuBtn"><span></span><span></span><span></span></button>
+                <a href="admin.html" class="icon-btn" title="Admin" aria-label="Admin panel"><i
+                        class="fas fa-user-shield"></i></a>
+                <button class="menu-btn" id="menuBtn" aria-label="Toggle menu"
+                    aria-expanded="false"><span></span><span></span><span></span></button>
             </div>
         </div>
     </nav>
@@ -57,7 +119,7 @@
             <div class="hero-content">
                 <div class="hero-badge" id="heroBadge"><span class="pulse"></span> Available for Work</div>
                 <h1 class="hero-title">
-                    <span class="greeting">Namaste, I'm</span>
+                    <span class="greeting">Assalamu Alaikum, I'm</span>
                     <span class="name" id="heroName">Md Azad</span>
                 </h1>
                 <p class="hero-subtitle"><span id="typingText">Web Developer</span><span class="typing-cursor"></span>
@@ -71,10 +133,14 @@
                 <div class="hero-social" id="heroSocial">
                     <a href="#" id="github" class="social-btn" title="GitHub"><i class="fab fa-github"></i></a>
                     <a href="#" id="linkedin" class="social-btn" title="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                    <a href="#" id="twitter" class="social-btn" title="Twitter"><i class="fab fa-twitter"></i></a>
                     <a href="#" id="instagram" class="social-btn" title="Instagram"><i class="fab fa-instagram"></i></a>
+                    <a href="#" id="facebook" class="social-btn" title="Facebook"><i class="fab fa-facebook-f"></i></a>
                     <a href="#" id="youtube" class="social-btn" title="YouTube"><i class="fab fa-youtube"></i></a>
                     <a href="#" id="whatsapp" class="social-btn whatsapp" title="WhatsApp"><i
                             class="fab fa-whatsapp"></i></a>
+                    <a href="#" id="telegram" class="social-btn" title="Telegram"><i
+                            class="fab fa-telegram-plane"></i></a>
                 </div>
             </div>
             <div class="hero-visual">
@@ -296,9 +362,11 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>© 2024 <strong>Md Azad Ansari</strong>. Crafted with <i class="fas fa-heart heart-icon"></i> in
+                <p>© <span id="currentYear">2025</span> <strong>Md Azad Ansari</strong>. Crafted with <i
+                        class="fas fa-heart heart-icon"></i> in
                     Bihar, India</p>
-                <p class="footer-credit">All Rights Reserved</p>
+                <p class="footer-credit">All Rights Reserved | <a href="#" onclick="sharePortfolio(); return false;"
+                        style="color: var(--primary);">Share Portfolio</a></p>
             </div>
         </div>
     </footer>

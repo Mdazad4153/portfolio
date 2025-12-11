@@ -1,17 +1,69 @@
-const API = 'https://portfolio-fbhl.onrender.com/api';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5000/api'
+  : 'https://backend-mu-sage.vercel.app/api';
 let token = localStorage.getItem('adminToken');
 const PLACEHOLDER_IMAGE = 'assets/profile-placeholder.svg';
+
+// Delete confirmation state
+let pendingDelete = null;
+
+// Login attempt tracking
+let loginAttempts = parseInt(localStorage.getItem('loginAttempts') || '0');
 
 const loginPage = document.getElementById('loginPage');
 const dashboard = document.getElementById('dashboard');
 const sidebar = document.getElementById('sidebar');
 
 document.addEventListener('DOMContentLoaded', () => {
+  initLoginFeatures(); // Professional login features
   if (token) checkAuth();
   else showLogin();
   setupEvents();
   initTheme();
 });
+
+// Initialize professional login features
+function initLoginFeatures() {
+  // Caps Lock Detection
+  const passwordInputs = document.querySelectorAll('input[type="password"]');
+  passwordInputs.forEach(input => {
+    input.addEventListener('keyup', (e) => {
+      const warning = document.getElementById('capslockWarning');
+      if (warning && e.getModifierState && e.getModifierState('CapsLock')) {
+        warning.style.display = 'flex';
+      } else if (warning) {
+        warning.style.display = 'none';
+      }
+    });
+  });
+
+  // Remember Me - Load saved email
+  const savedEmail = localStorage.getItem('rememberedEmail');
+  const rememberCheckbox = document.getElementById('rememberMe');
+  const emailInput = document.getElementById('loginEmail');
+
+  if (savedEmail && emailInput) {
+    emailInput.value = savedEmail;
+    if (rememberCheckbox) rememberCheckbox.checked = true;
+  }
+
+  // Password Strength for Reset Form
+  const resetNewPass = document.getElementById('resetNewPass');
+  if (resetNewPass) {
+    resetNewPass.addEventListener('input', checkPasswordStrength);
+  }
+
+  // Password Match Check
+  const resetConfirmPass = document.getElementById('resetConfirmPass');
+  if (resetConfirmPass) {
+    resetConfirmPass.addEventListener('input', checkPasswordMatch);
+  }
+
+  // Show login attempts warning if needed
+  if (loginAttempts >= 3) {
+    showLoginAttempts();
+  }
+}
 
 function setupEvents() {
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
@@ -43,11 +95,236 @@ function setupEvents() {
     });
   });
 
-  document.getElementById('profileForm').addEventListener('submit', saveProfile);
+  document.getElementById('profileForm')?.addEventListener('submit', saveProfile);
 
   // Photo upload
-  document.getElementById('photoInput').addEventListener('change', handlePhotoSelect);
-  document.getElementById('removePhotoBtn').addEventListener('click', removePhoto);
+  document.getElementById('photoInput')?.addEventListener('change', handlePhotoSelect);
+  // removePhotoBtn is handled by global event delegation below
+
+  // Resume upload
+  document.getElementById('resumeInput')?.addEventListener('change', handleResumeUpload);
+  document.getElementById('downloadResumeBtn')?.addEventListener('click', downloadResume);
+  // removeResumeBtn is handled by global event delegation below
+
+  // Forgot Password Link -> Show Reset Card
+  document.getElementById('forgotPasswordLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('loginCard').style.display = 'none';
+    document.getElementById('resetCard').style.display = 'block';
+  });
+
+  // Back to Login Link -> Show Login Card
+  document.getElementById('backToLoginLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('resetCard').style.display = 'none';
+    document.getElementById('loginCard').style.display = 'block';
+  });
+
+  document.getElementById('resetForm').addEventListener('submit', handleResetPassword);
+
+  // ================================
+  // GLOBAL EVENT DELEGATION
+  // ================================
+  // This handles all dynamically generated buttons
+  // Instead of adding individual event listeners to each button,
+  // we use one listener on the body element for better performance
+  document.body.addEventListener('click', (e) => {
+    // Check if clicked element is a delete button (or inside one)
+    const deleteBtn = e.target.closest('.btn-delete');
+
+    if (deleteBtn) {
+      // Extract the endpoint and ID from data attributes
+      // Example: <button class="btn-delete" data-endpoint="skills" data-id="123abc">
+      const endpoint = deleteBtn.dataset.endpoint;
+      const id = deleteBtn.dataset.id;
+
+      // Validate and call deleteItem function
+      if (endpoint && id) {
+        deleteItem(endpoint, id);
+      } else {
+        console.error('Delete button missing data-endpoint or data-id attributes');
+        showToast('⚠️ Delete button configuration error');
+      }
+      return;
+    }
+
+    // Handle Resume Remove Button
+    if (e.target.closest('#removeResumeBtn')) {
+      console.log('📄 Resume remove button clicked via delegation');
+      const modal = document.getElementById('resumeRemoveModal');
+      if (modal) {
+        modal.classList.add('active');
+        console.log('📄 Resume remove modal opened');
+      }
+      return;
+    }
+
+    // Handle Photo Remove Button  
+    if (e.target.closest('#removePhotoBtn')) {
+      console.log('📸 Photo remove button clicked via delegation');
+      const modal = document.getElementById('photoRemoveModal');
+      if (modal) {
+        modal.classList.add('active');
+        console.log('📸 Photo remove modal opened');
+      }
+      return;
+    }
+    // Handle Text Formatting Buttons (Bold, Italic, Underline)
+    const toolBtn = e.target.closest('.btn-tool');
+    if (toolBtn) {
+      e.preventDefault();
+      const field = toolBtn.dataset.field;
+      const tag = toolBtn.dataset.tag;
+      if (field && tag) {
+        wrapSelection(field, tag);
+      }
+      return;
+    }
+  });
+
+  // Prevent focus loss when clicking tool buttons (Important for text selection)
+  document.body.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.btn-tool')) {
+      e.preventDefault();
+    }
+  });
+
+  // Delete modal event listeners
+
+  const deleteConfirmBtn = document.getElementById('deleteConfirmBtn');
+  const deleteCancelBtn = document.getElementById('deleteCancelBtn');
+  const deleteModal = document.getElementById('deleteConfirmModal');
+
+  if (deleteConfirmBtn) {
+    deleteConfirmBtn.addEventListener('click', confirmDelete);
+  }
+
+  if (deleteCancelBtn) {
+    deleteCancelBtn.addEventListener('click', cancelDelete);
+  }
+
+  if (deleteModal) {
+    // Close on backdrop click
+    deleteModal.addEventListener('click', (e) => {
+      if (e.target === deleteModal) cancelDelete();
+    });
+  }
+
+  // Photo remove modal event listeners
+  const photoRemoveConfirmBtn = document.getElementById('photoRemoveConfirmBtn');
+  const photoRemoveCancelBtn = document.getElementById('photoRemoveCancelBtn');
+  const photoRemoveModal = document.getElementById('photoRemoveModal');
+
+  if (photoRemoveConfirmBtn) {
+    photoRemoveConfirmBtn.addEventListener('click', confirmPhotoRemove);
+  }
+
+  if (photoRemoveCancelBtn) {
+    photoRemoveCancelBtn.addEventListener('click', cancelPhotoRemove);
+  }
+
+  if (photoRemoveModal) {
+    // Close on backdrop click
+    photoRemoveModal.addEventListener('click', (e) => {
+      if (e.target === photoRemoveModal) cancelPhotoRemove();
+    });
+  }
+
+  // Resume remove modal event listeners
+  const resumeRemoveConfirmBtn = document.getElementById('resumeRemoveConfirmBtn');
+  const resumeRemoveCancelBtn = document.getElementById('resumeRemoveCancelBtn');
+  const resumeRemoveModal = document.getElementById('resumeRemoveModal');
+
+  if (resumeRemoveConfirmBtn) {
+    resumeRemoveConfirmBtn.addEventListener('click', confirmResumeRemove);
+  }
+
+  if (resumeRemoveCancelBtn) {
+    resumeRemoveCancelBtn.addEventListener('click', cancelResumeRemove);
+  }
+
+  if (resumeRemoveModal) {
+    // Close on backdrop click
+    resumeRemoveModal.addEventListener('click', (e) => {
+      if (e.target === resumeRemoveModal) cancelResumeRemove();
+    });
+  }
+
+  // Close modal on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (deleteModal && deleteModal.classList.contains('active')) {
+        cancelDelete();
+      }
+      if (photoRemoveModal && photoRemoveModal.classList.contains('active')) {
+        cancelPhotoRemove();
+      }
+      if (resumeRemoveModal && resumeRemoveModal.classList.contains('active')) {
+        cancelResumeRemove();
+      }
+    }
+  });
+}
+
+// Password Visibility Toggle
+function togglePassword(inputId) {
+  const input = document.getElementById(inputId);
+  const icon = input.parentElement.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'fas fa-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'fas fa-eye';
+  }
+}
+
+async function handleResetPassword(e) {
+  e.preventDefault();
+  const form = e.target;
+  const email = document.getElementById('resetEmail').value;
+  const secretCode = document.getElementById('resetSecret').value;
+  const newPassword = document.getElementById('resetNewPass').value;
+  const confirmPassword = document.getElementById('resetConfirmPass').value;
+
+  if (newPassword !== confirmPassword) {
+    showToast('Passwords do not match');
+    return;
+  }
+
+  const btn = form.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+
+  try {
+    const res = await fetch(`${API}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, secretCode, newPassword })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      showToast('✅ Password reset successful! Please login with your new password.');
+      // Switch back to login card
+      document.getElementById('resetCard').style.display = 'none';
+      document.getElementById('loginCard').style.display = 'block';
+
+      // Pre-fill login email for convenience
+      const loginEmailInput = document.getElementById('loginEmail');
+      if (loginEmailInput) {
+        loginEmailInput.value = email;
+        loginEmailInput.focus();
+      }
+
+      form.reset();
+    } else {
+      showToast(data.message || 'Reset failed');
+    }
+  } catch { showToast('Connection error'); }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-check-circle"></i> Reset Password';
 }
 
 function initTheme() {
@@ -84,34 +361,97 @@ async function checkAuth() {
 
 async function handleLogin(e) {
   e.preventDefault();
-  const btn = e.target.querySelector('button');
+  const btn = e.target.querySelector('button[type="submit"]');
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
   btn.disabled = true;
+
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const rememberMe = document.getElementById('rememberMe')?.checked;
 
   try {
     const res = await fetch(`${API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: document.getElementById('loginEmail').value,
-        password: document.getElementById('loginPassword').value
-      })
+      body: JSON.stringify({ email, password })
     });
     const data = await res.json();
 
     if (res.ok) {
       token = data.token;
       localStorage.setItem('adminToken', token);
+
+      // Remember Me functionality
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', email);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+
+      // Reset login attempts on successful login
+      resetLoginAttempts();
+
       showDashboard();
       loadAllData();
       showToast('Welcome back! 👋');
+    } else if (res.status === 429) {
+      // Rate limited - show countdown
+      const lockoutSeconds = data.lockoutSeconds || 30;
+      showLockoutCountdown(lockoutSeconds, btn);
+      showToast('⏱️ Too many attempts! Wait for countdown...');
     } else {
+      // Increment failed login attempts
+      incrementLoginAttempts();
       showToast(data.message || 'Invalid credentials');
+      btn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
+      btn.disabled = false;
     }
-  } catch { showToast('Connection error'); }
+  } catch {
+    showToast('Connection error');
+    btn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
+    btn.disabled = false;
+  }
+}
 
-  btn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
-  btn.disabled = false;
+// Show countdown timer when locked out
+function showLockoutCountdown(seconds, btn) {
+  let remaining = seconds;
+
+  // Create or get lockout message element
+  let lockoutMsg = document.getElementById('lockoutMessage');
+  if (!lockoutMsg) {
+    lockoutMsg = document.createElement('div');
+    lockoutMsg.id = 'lockoutMessage';
+    lockoutMsg.className = 'lockout-countdown';
+    const loginCard = document.getElementById('loginCard');
+    if (loginCard) {
+      const formGroup = loginCard.querySelector('.form-group');
+      if (formGroup) formGroup.parentNode.insertBefore(lockoutMsg, formGroup);
+    }
+  }
+
+  const updateCountdown = () => {
+    if (remaining > 0) {
+      lockoutMsg.innerHTML = `
+        <div class="countdown-box">
+          <i class="fas fa-lock"></i>
+          <span>Too many attempts! Retry in <strong>${remaining}s</strong></span>
+        </div>
+      `;
+      lockoutMsg.style.display = 'block';
+      btn.innerHTML = `<i class="fas fa-clock"></i> Wait ${remaining}s`;
+      btn.disabled = true;
+      remaining--;
+      setTimeout(updateCountdown, 1000);
+    } else {
+      lockoutMsg.style.display = 'none';
+      btn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
+      btn.disabled = false;
+      showToast('✅ You can try again now!');
+    }
+  };
+
+  updateCountdown();
 }
 
 function logout() {
@@ -131,12 +471,14 @@ async function fetchAuth(url, options = {}) {
 async function loadAllData() {
   loadStats();
   loadProfile();
+  loadMedia(); // Load photo and resume
   loadSkills();
   loadEducation();
   loadProjects();
   loadServices();
   loadCertificates();
   loadMessages();
+  loadSessions(); // Load active sessions
 }
 
 async function loadStats() {
@@ -210,7 +552,252 @@ async function loadProfile() {
       if (photoInitials) photoInitials.style.display = 'none';
       if (removeBtn) removeBtn.style.display = 'none';
     }
+
+    // Show current resume if exists
+    if (d.resumeUrl) {
+      window.currentResumeUrl = d.resumeUrl;
+      const fileName = d.resumeUrl.split('/').pop();
+      document.getElementById('resumeStatus').textContent = fileName || 'Resume.pdf';
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+    } else {
+      document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+      document.getElementById('downloadResumeBtn').style.display = 'none';
+      document.getElementById('removeResumeBtn').style.display = 'none';
+      window.currentResumeUrl = null;
+    }
   } catch { }
+}
+
+// Load Media (Photo & Resume) - separate function for Media page
+async function loadMedia() {
+  try {
+    const res = await fetch(`${API}/profile`);
+    const d = await res.json();
+
+    // Show current photo or placeholder
+    const previewImg = document.getElementById('previewImg');
+    const photoInitials = document.getElementById('photoInitials');
+    const removeBtn = document.getElementById('removePhotoBtn');
+    if (d.profileImage) {
+      previewImg.src = d.profileImage.startsWith('http') ? d.profileImage : `${API.replace('/api', '')}${d.profileImage}`;
+      previewImg.style.display = 'block';
+      if (photoInitials) photoInitials.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'inline-flex';
+    } else {
+      // Show placeholder SVG when no profile image
+      previewImg.src = PLACEHOLDER_IMAGE;
+      previewImg.style.display = 'block';
+      if (photoInitials) photoInitials.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+
+    // Show current resume if exists
+    if (d.resumeUrl) {
+      window.currentResumeUrl = d.resumeUrl;
+      const fileName = d.resumeUrl.split('/').pop();
+      document.getElementById('resumeStatus').textContent = fileName || 'Resume.pdf';
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+    } else {
+      document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+      document.getElementById('downloadResumeBtn').style.display = 'none';
+      document.getElementById('removeResumeBtn').style.display = 'none';
+      window.currentResumeUrl = null;
+    }
+  } catch { }
+}
+
+async function handlePhotoSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select an image file');
+    e.target.value = '';
+    return;
+  }
+
+  // Use the photo-cropper.js functionality
+  if (typeof openCropper === 'function') {
+    openCropper(file);
+  } else {
+    // Fallback if cropper is missing
+    console.error('Photo cropper not loaded');
+    showToast('Error: Cropper functionality missing');
+  }
+
+  e.target.value = '';
+}
+
+// Photo removal with custom modal
+async function removePhoto() {
+  // Show custom modal instead of browser confirm
+  document.getElementById('photoRemoveModal').classList.add('active');
+  console.log('📸 Photo remove confirmation shown');
+}
+
+// Actually remove the photo (called when user confirms)
+async function confirmPhotoRemove() {
+  // Close modal
+  document.getElementById('photoRemoveModal').classList.remove('active');
+
+  try {
+    showToast('⏳ Removing photo...');
+
+    const res = await fetch(`${API}/profile/image`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.ok) {
+      document.getElementById('previewImg').src = PLACEHOLDER_IMAGE;
+      document.getElementById('removePhotoBtn').style.display = 'none';
+
+      const name = document.querySelector('input[name="name"]').value || 'MA';
+      const initialsStr = name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+
+      const initialElem = document.getElementById('photoInitials');
+      if (initialElem) {
+        initialElem.textContent = initialsStr;
+        initialElem.style.display = 'flex';
+      }
+
+      showToast('✅ Photo removed successfully!');
+      console.log('✅ Photo removed');
+    } else {
+      showToast('❌ Failed to remove photo');
+      console.error('❌ Photo removal failed');
+    }
+  } catch (error) {
+    showToast('❌ Connection error');
+    console.error('❌ Photo removal error:', error);
+  }
+}
+
+// Cancel photo removal
+function cancelPhotoRemove() {
+  document.getElementById('photoRemoveModal').classList.remove('active');
+  showToast('❌ Photo removal cancelled');
+  console.log('✖ Photo removal cancelled');
+}
+
+// ================================
+// RESUME FUNCTIONS
+// ================================
+
+// Handle resume upload
+async function handleResumeUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.type !== 'application/pdf') {
+    showToast('❌ Please select a PDF file');
+    e.target.value = '';
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('❌ File size must be less than 10MB');
+    e.target.value = '';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('resume', file);
+
+  try {
+    showToast('⏳ Uploading resume...');
+
+    const res = await fetch(`${API}/profile/resume`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      window.currentResumeUrl = data.resumeUrl;
+      document.getElementById('resumeStatus').textContent = file.name;
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+      showToast('✅ Resume uploaded successfully!');
+      console.log('✅ Resume uploaded:', data.resumeUrl);
+    } else {
+      const err = await res.json();
+      console.error('❌ Resume upload failed:', err);
+      console.error('Status:', res.status);
+      console.error('Error details:', JSON.stringify(err, null, 2));
+      showToast('❌ ' + (err.message || err.error || 'Upload failed'));
+    }
+  } catch (error) {
+    console.error('Resume upload error:', error);
+    console.error('Error stack:', error.stack);
+    showToast('❌ Server error');
+  }
+
+  e.target.value = '';
+}
+
+// Download resume
+function downloadResume() {
+  if (window.currentResumeUrl) {
+    const url = window.currentResumeUrl.startsWith('http')
+      ? window.currentResumeUrl
+      : `${API.replace('/api', '')}${window.currentResumeUrl}`;
+    window.open(url, '_blank');
+    showToast('📥 Opening resume...');
+  } else {
+    showToast('❌ No resume available');
+  }
+}
+
+// Show resume remove modal
+function removeResume() {
+  document.getElementById('resumeRemoveModal').classList.add('active');
+  console.log('📄 Resume remove confirmation shown');
+}
+
+// Actually remove the resume (called when user confirms)
+async function confirmResumeRemove() {
+  document.getElementById('resumeRemoveModal').classList.remove('active');
+
+  try {
+    showToast('⏳ Removing resume...');
+
+    const res = await fetch(`${API}/profile/resume`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res.ok) {
+      window.currentResumeUrl = null;
+      document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+      document.getElementById('downloadResumeBtn').style.display = 'none';
+      document.getElementById('removeResumeBtn').style.display = 'none';
+      showToast('✅ Resume removed successfully!');
+      console.log('✅ Resume removed');
+    } else {
+      showToast('❌ Failed to remove resume');
+      console.error('❌ Resume removal failed');
+    }
+  } catch (error) {
+    showToast('❌ Connection error');
+    console.error('❌ Resume removal error:', error);
+  }
+}
+
+// Cancel resume removal
+function cancelResumeRemove() {
+  document.getElementById('resumeRemoveModal').classList.remove('active');
+  showToast('❌ Resume removal cancelled');
+  console.log('✖ Resume removal cancelled');
 }
 
 async function saveProfile(e) {
@@ -253,7 +840,7 @@ async function loadSkills() {
         <div class="item-header"><h4>${s.name}</h4>
           <div class="item-actions">
             <button class="btn-edit" onclick='editItem("skill", ${JSON.stringify(s).replace(/'/g, "&#39;")})'>Edit</button>
-            <button class="btn-delete" onclick="deleteItem('skills', '${s._id}')">Delete</button>
+            <button class="btn-delete" data-endpoint="skills" data-id="${s._id}">Delete</button>
           </div>
         </div>
         <p><span class="tag">${s.category}</span> ${s.proficiency}%</p>
@@ -271,7 +858,7 @@ async function loadEducation() {
         <div class="item-header"><h4>${e.degree} - ${e.field}</h4>
           <div class="item-actions">
             <button class="btn-edit" onclick='editItem("education", ${JSON.stringify(e).replace(/'/g, "&#39;")})'>Edit</button>
-            <button class="btn-delete" onclick="deleteItem('education', '${e._id}')">Delete</button>
+            <button class="btn-delete" data-endpoint="education" data-id="${e._id}">Delete</button>
           </div>
         </div>
         <p>${e.institution}</p><p><span class="tag">${e.startYear} - ${e.endYear}</span></p>
@@ -289,7 +876,7 @@ async function loadProjects() {
         <div class="item-header"><h4>${p.featured ? '⭐ ' : ''}${p.title}</h4>
           <div class="item-actions">
             <button class="btn-edit" onclick='editItem("project", ${JSON.stringify(p).replace(/'/g, "&#39;")})'>Edit</button>
-            <button class="btn-delete" onclick="deleteItem('projects', '${p._id}')">Delete</button>
+            <button class="btn-delete" data-endpoint="projects" data-id="${p._id}">Delete</button>
           </div>
         </div>
         <p>${p.description?.substring(0, 80)}...</p>
@@ -312,7 +899,7 @@ async function loadServices() {
         <div class="item-header"><h4>${s.title}</h4>
           <div class="item-actions">
             <button class="btn-edit" onclick='editItem("service", ${JSON.stringify(s).replace(/'/g, "&#39;")})'>Edit</button>
-            <button class="btn-delete" onclick="deleteItem('services', '${s._id}')">Delete</button>
+            <button class="btn-delete" data-endpoint="services" data-id="${s._id}">Delete</button>
           </div>
         </div>
         <p>${s.description?.substring(0, 80)}...</p>
@@ -330,7 +917,7 @@ async function loadCertificates() {
         <div class="item-header"><h4>${c.title}</h4>
           <div class="item-actions">
             <button class="btn-edit" onclick='editItem("certificate", ${JSON.stringify(c).replace(/'/g, "&#39;")})'>Edit</button>
-            <button class="btn-delete" onclick="deleteItem('certificates', '${c._id}')">Delete</button>
+            <button class="btn-delete" data-endpoint="certificates" data-id="${c._id}">Delete</button>
           </div>
         </div>
         <p><i class="fas fa-building"></i> ${c.issuer}</p>
@@ -358,7 +945,7 @@ async function loadMessages() {
         <p class="msg-body">${m.message}</p>
         <div class="msg-actions item-actions">
           ${!m.isRead ? `<button class="btn-edit" onclick="markRead('${m._id}')">Mark Read</button>` : ''}
-          <button class="btn-delete" onclick="deleteItem('contact', '${m._id}')">Delete</button>
+          <button class="btn-delete" data-endpoint="contact" data-id="${m._id}">Delete</button>
         </div>
       </div>
     `).join('') : '<div class="empty-state"><i class="fas fa-envelope"></i><p>No messages</p></div>';
@@ -378,25 +965,117 @@ async function markRead(id) {
   showToast('Marked as read');
 }
 
+// ================================
+// DELETE ITEM FUNCTION - Properly Implemented
+// ================================
+/**
+ * Deletes an item from the database with user confirmation
+ * @param {string} endpoint - API endpoint (e.g., 'skills', 'education', 'projects')
+ * @param {string} id - MongoDB ObjectId of the item to delete
+ */
 async function deleteItem(endpoint, id) {
-  if (!confirm('Are you sure you want to delete this item?')) return;
+  // Validate parameters
+  if (!endpoint || !id) {
+    showToast('⚠️ Invalid delete request');
+    console.error('Delete error: Missing endpoint or id');
+    return;
+  }
+
+  // Store delete request
+  pendingDelete = { endpoint, id };
+
+  // Get item type
+  const itemTypes = {
+    'skills': 'skill',
+    'education': 'education entry',
+    'projects': 'project',
+    'services': 'service',
+    'certificates': 'certificate',
+    'contact': 'message'
+  };
+  const itemType = itemTypes[endpoint] || 'item';
+
+  // Update modal message (simple and clean)
+  document.getElementById('deleteConfirmMessage').textContent =
+    `Are you sure you want to delete this ${itemType}?`;
+
+  // Show modal
+  document.getElementById('deleteConfirmModal').classList.add('active');
+  console.log(`🗑️ Delete confirmation for: ${endpoint}/${id}`);
+}
+
+/**
+ * Actually performs the delete operation (called when user clicks "Delete" in modal)
+ */
+async function confirmDelete() {
+  if (!pendingDelete) return;
+
+  const { endpoint, id } = pendingDelete;
+  closeDeleteModal();
+
+  const itemTypes = {
+    'skills': 'skill',
+    'education': 'education entry',
+    'projects': 'project',
+    'services': 'service',
+    'certificates': 'certificate',
+    'contact': 'message'
+  };
+  const itemType = itemTypes[endpoint] || 'item';
 
   try {
-    showToast('Deleting...');
-    const res = await fetchAuth(`/${endpoint}/${id}`, { method: 'DELETE' });
+    showToast('⏳ Deleting...');
+    console.log(`🗑️ DELETE: /${endpoint}/${id}`);
 
-    if (res.ok) {
-      showToast('Deleted successfully! ✅');
-      loadAllData();
+    const response = await fetchAuth(`/${endpoint}/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (response.ok) {
+      console.log('✅ Delete successful');
+      showToast(`✅ ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} deleted successfully!`);
+      await loadAllData();
     } else {
-      const err = await res.json();
-      showToast(err.message || 'Delete failed');
+      const err = await response.json().catch(() => ({ message: 'Delete failed' }));
+      console.error('❌ Delete failed:', err);
+      showToast(`❌ ${err.message || 'Failed to delete'}`);
     }
-  } catch (e) {
-    console.error('Delete error:', e);
-    showToast('Error deleting item');
+  } catch (error) {
+    console.error('❌ Delete error:', error);
+    showToast('❌ Connection error');
+  } finally {
+    pendingDelete = null;
   }
 }
+
+/**
+ * Cancels delete operation (called when user clicks "Cancel" in modal)
+ */
+function cancelDelete() {
+  console.log('✖ Delete cancelled');
+  pendingDelete = null;
+  closeDeleteModal();
+  showToast('❌ Deletion cancelled');
+}
+
+/**
+ * Closes the delete confirmation modal
+ */
+function closeDeleteModal() {
+  document.getElementById('deleteConfirmModal').classList.remove('active');
+}
+
+// Make functions globally available for onclick handlers
+window.deleteItem = deleteItem;
+window.confirmDelete = confirmDelete;
+window.cancelDelete = cancelDelete;
+window.closeDeleteModal = closeDeleteModal;
+
+// Photo removal functions
+window.removePhoto = removePhoto;
+window.confirmPhotoRemove = confirmPhotoRemove;
+window.cancelPhotoRemove = cancelPhotoRemove;
 
 // Icon options for skills dropdown
 const skillIconOptions = [
@@ -687,100 +1366,6 @@ async function handleModalSubmit(e) {
 function showToast(msg) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 4000);
-}
-
-// Photo Upload Functions
-let selectedPhotoFile = null;
-
-function handlePhotoSelect(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  if (!file.type.startsWith('image/')) {
-    showToast('Please select an image file');
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Image size should be less than 5MB');
-    return;
-  }
-
-  // Open cropper modal for adjustment
-  if (typeof openCropper === 'function') {
-    openCropper(file);
-  } else {
-    // Fallback if cropper not loaded
-    selectedPhotoFile = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const previewImg = document.getElementById('previewImg');
-      const photoInitials = document.getElementById('photoInitials');
-      const removeBtn = document.getElementById('removePhotoBtn');
-      previewImg.src = e.target.result;
-      previewImg.style.display = 'block';
-      if (photoInitials) photoInitials.style.display = 'none';
-      if (removeBtn) removeBtn.style.display = 'inline-flex';
-    };
-    reader.readAsDataURL(file);
-    uploadPhoto(file);
-  }
-}
-
-async function uploadPhoto(file) {
-  const formData = new FormData();
-  formData.append('profileImage', file);
-
-  try {
-    showToast('Uploading photo...');
-    const res = await fetch(`${API}/profile/image`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: formData
-    });
-
-    if (res.ok) {
-      showToast('Photo uploaded! ✨');
-    } else {
-      const err = await res.json();
-      showToast(err.message || 'Upload failed');
-    }
-  } catch { showToast('Upload error'); }
-}
-
-async function removePhoto() {
-  if (!confirm('Remove profile photo?')) return;
-
-  try {
-    showToast('Removing photo...');
-    const res = await fetchAuth('/profile/image', {
-      method: 'DELETE'
-    });
-
-    if (res.ok) {
-      const previewImg = document.getElementById('previewImg');
-      const photoInitials = document.getElementById('photoInitials');
-      const removeBtn = document.getElementById('removePhotoBtn');
-
-      // Show placeholder SVG instead of initials
-      previewImg.src = PLACEHOLDER_IMAGE;
-      previewImg.style.display = 'block';
-      if (photoInitials) photoInitials.style.display = 'none';
-      if (removeBtn) removeBtn.style.display = 'none';
-      document.getElementById('photoInput').value = '';
-      selectedPhotoFile = null;
-
-      showToast('Photo removed! ✅');
-    } else {
-      const err = await res.json();
-      showToast(err.message || 'Failed to remove photo');
-    }
-  } catch (e) {
-    console.error('Remove error:', e);
-    showToast('Error removing photo');
-  }
 }
 
 // Update icon preview when dropdown changes
@@ -935,7 +1520,6 @@ function openModalWithProjectImage(type, data = null) {
 openModal = openModalWithProjectImage;
 
 // Expose functions globally for onclick handlers
-window.deleteItem = deleteItem;
 window.editItem = editItem;
 window.openModal = openModalWithProjectImage;
 window.closeModal = closeModal;
@@ -944,5 +1528,1118 @@ window.previewLink = previewLink;
 window.updateIconPreview = updateIconPreview;
 window.generateIconDropdown = generateIconDropdown;
 window.getIconClass = getIconClass;
+
+// Text Formatting Helper
+function wrapSelection(textareaName, tag) {
+  const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+  if (!textarea) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selectedText = text.substring(start, end);
+
+  if (!selectedText) {
+    // If no text selected, just insert empty tags and place cursor inside
+    const newText = text.substring(0, start) + `<${tag}></${tag}>` + text.substring(end);
+    textarea.value = newText;
+    textarea.focus();
+    textarea.selectionStart = start + tag.length + 2;
+    textarea.selectionEnd = start + tag.length + 2;
+    return;
+  }
+
+  const newText = text.substring(0, start) + `<${tag}>` + selectedText + `</${tag}>` + text.substring(end);
+  textarea.value = newText;
+
+  // Restore selection
+  textarea.focus();
+  textarea.selectionStart = start;
+  textarea.selectionEnd = end + tag.length * 2 + 5; // approx adjustment
+}
+
+// ================================
+// RESUME UPLOAD FUNCTIONALITY
+// ================================
+
+async function handleResumeUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Validate file type
+  if (file.type !== 'application/pdf') {
+    showToast('❌ Please select a PDF file');
+    e.target.value = '';
+    return;
+  }
+
+  // Validate file size (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('❌ File size should be less than 10MB');
+    e.target.value = '';
+    return;
+  }
+
+  try {
+    showToast('⏳ Uploading resume...');
+
+    const formData = new FormData();
+    formData.append('resume', file);
+
+    const res = await fetch(`${API}/profile/resume`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      showToast('✅ Resume uploaded successfully!');
+
+      // Update UI
+      document.getElementById('resumeStatus').textContent = file.name;
+      document.getElementById('downloadResumeBtn').style.display = 'inline-flex';
+      document.getElementById('removeResumeBtn').style.display = 'inline-flex';
+
+      // Store resume URL
+      window.currentResumeUrl = data.resumeUrl;
+    } else {
+      const err = await res.json();
+      showToast(`❌ ${err.message || 'Upload failed'}`);
+    }
+  } catch (error) {
+    showToast('❌ Connection error');
+    console.error('Resume upload error:', error);
+  }
+
+  e.target.value = '';
+}
+
+function downloadResume() {
+  if (window.currentResumeUrl) {
+    const link = document.createElement('a');
+    link.href = window.currentResumeUrl.startsWith('http')
+      ? window.currentResumeUrl
+      : `${API.replace('/api', '')}${window.currentResumeUrl}`;
+    link.download = 'Resume.pdf';
+    link.target = '_blank';
+    link.click();
+    showToast('📥 Downloading resume...');
+  } else {
+    showToast('❌ No resume found');
+  }
+}
+
+async function removeResume() {
+  if (!confirm('Are you sure you want to remove your resume?')) {
+    return;
+  }
+
+  try {
+    showToast('⏳ Removing resume...');
+
+    // Update profile to clear resume URL
+    await fetchAuth('/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeUrl: '' })
+    });
+
+    showToast('✅ Resume removed successfully!');
+
+    // Update UI
+    document.getElementById('resumeStatus').textContent = 'Upload your resume in PDF format';
+    document.getElementById('downloadResumeBtn').style.display = 'none';
+    document.getElementById('removeResumeBtn').style.display = 'none';
+    window.currentResumeUrl = null;
+  } catch (error) {
+    showToast('❌ Error removing resume');
+    console.error('Resume remove error:', error);
+  }
+}
+
+// Toast notification function
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.textContent = msg;
+  toast.classList.add('show');
+
+  // Auto-hide after 3 seconds
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3000);
+}
+
+// ================================
+// TEXT FORMATTING FUNCTION
+// ================================
+// Wraps selected text in textarea with HTML tags (b, i, u)
+function wrapSelection(textareaName, tag) {
+  const textarea = document.querySelector(`textarea[name="${textareaName}"]`);
+  if (!textarea) {
+    console.error('Textarea not found:', textareaName);
+    return;
+  }
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selectedText = text.substring(start, end);
+
+  if (!selectedText) {
+    // If no text selected, just insert empty tags and place cursor inside
+    const newText = text.substring(0, start) + `<${tag}></${tag}>` + text.substring(end);
+    textarea.value = newText;
+    textarea.focus();
+    textarea.selectionStart = start + tag.length + 2;
+    textarea.selectionEnd = start + tag.length + 2;
+    showToast('📝 Select text first, then click format button');
+    return;
+  }
+
+  // Wrap selected text with tags
+  const newText = text.substring(0, start) + `<${tag}>` + selectedText + `</${tag}>` + text.substring(end);
+  textarea.value = newText;
+
+  // Restore selection
+  textarea.focus();
+  textarea.selectionStart = start;
+  textarea.selectionEnd = end + tag.length * 2 + 5;
+
+  const tagNames = { 'b': 'Bold', 'i': 'Italic', 'u': 'Underline' };
+  showToast(`✅ ${tagNames[tag] || 'Format'} applied!`);
+}
+
 window.previewProjectImage = previewProjectImage;
 window.removeProjectImage = removeProjectImage;
+window.wrapSelection = wrapSelection;
+
+// ===========================================
+// PROFESSIONAL LOGIN FUNCTIONS
+// ===========================================
+
+// Password Strength Checker
+function checkPasswordStrength() {
+  const password = document.getElementById('resetNewPass').value;
+  const strengthFill = document.getElementById('strengthFill');
+  const strengthText = document.getElementById('strengthText');
+
+  let strength = 0;
+  const requirements = {
+    length: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    number: /[0-9]/.test(password)
+  };
+
+  // Update requirement indicators
+  Object.keys(requirements).forEach(req => {
+    const el = document.getElementById('req' + req.charAt(0).toUpperCase() + req.slice(1));
+    if (el) {
+      el.classList.toggle('valid', requirements[req]);
+    }
+  });
+
+  // Calculate strength
+  strength = Object.values(requirements).filter(Boolean).length;
+
+  // Update strength bar
+  strengthFill.className = 'strength-fill';
+  if (password.length === 0) {
+    strengthText.textContent = 'Enter password';
+  } else if (strength <= 1) {
+    strengthFill.classList.add('weak');
+    strengthText.textContent = 'Weak';
+  } else if (strength === 2) {
+    strengthFill.classList.add('fair');
+    strengthText.textContent = 'Fair';
+  } else if (strength === 3) {
+    strengthFill.classList.add('good');
+    strengthText.textContent = 'Good';
+  } else {
+    strengthFill.classList.add('strong');
+    strengthText.textContent = 'Strong';
+  }
+}
+
+// Password Match Checker
+function checkPasswordMatch() {
+  const newPass = document.getElementById('resetNewPass').value;
+  const confirmPass = document.getElementById('resetConfirmPass').value;
+  const matchEl = document.getElementById('passwordMatch');
+  const mismatchEl = document.getElementById('passwordMismatch');
+
+  if (confirmPass.length === 0) {
+    matchEl.style.display = 'none';
+    mismatchEl.style.display = 'none';
+  } else if (newPass === confirmPass) {
+    matchEl.style.display = 'flex';
+    mismatchEl.style.display = 'none';
+  } else {
+    matchEl.style.display = 'none';
+    mismatchEl.style.display = 'flex';
+  }
+}
+
+// Show login attempts warning
+function showLoginAttempts() {
+  const attemptsDiv = document.getElementById('loginAttempts');
+  const attemptsText = document.getElementById('attemptsText');
+  if (attemptsDiv && attemptsText) {
+    const remaining = 5 - loginAttempts;
+    if (remaining > 0) {
+      attemptsText.textContent = `${remaining} attempts remaining before lockout`;
+      attemptsDiv.style.display = 'block';
+    } else {
+      attemptsText.textContent = 'Account temporarily locked. Try again later.';
+      attemptsDiv.style.display = 'block';
+    }
+  }
+}
+
+// Reset login attempts on successful login
+function resetLoginAttempts() {
+  loginAttempts = 0;
+  localStorage.setItem('loginAttempts', '0');
+  const attemptsDiv = document.getElementById('loginAttempts');
+  if (attemptsDiv) attemptsDiv.style.display = 'none';
+}
+
+// Increment login attempts on failed login
+function incrementLoginAttempts() {
+  loginAttempts++;
+  localStorage.setItem('loginAttempts', loginAttempts.toString());
+  if (loginAttempts >= 3) {
+    showLoginAttempts();
+  }
+}
+
+// Export functions
+window.checkPasswordStrength = checkPasswordStrength;
+window.checkPasswordMatch = checkPasswordMatch;
+
+// ===========================================
+// PROFESSIONAL ADMIN FEATURES
+// ===========================================
+
+// KEYBOARD SHORTCUTS
+document.addEventListener('keydown', (e) => {
+  // Don't trigger shortcuts when typing in inputs
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+  // Only work when dashboard is visible
+  if (dashboard.style.display === 'none') return;
+
+  const key = e.key.toLowerCase();
+
+  // Navigation shortcuts
+  if (key === 'd') navigateToPage('home');
+  if (key === 'p') navigateToPage('projects');
+  if (key === 's') navigateToPage('skills');
+  if (key === 'm') navigateToPage('messages');
+  if (key === 'e') navigateToPage('education');
+  if (key === 'c') navigateToPage('certificates');
+
+  // Action shortcuts
+  if (key === 'n') {
+    const currentPage = document.querySelector('.page.active')?.id?.replace('Page', '');
+    if (currentPage === 'projects') openModal('project');
+    else if (currentPage === 'skills') openModal('skill');
+    else if (currentPage === 'education') openModal('education');
+    else if (currentPage === 'services') openModal('service');
+    else if (currentPage === 'certificates') openModal('certificate');
+  }
+
+  if (key === 't') toggleQuickTheme();
+  if (key === '?' || (e.shiftKey && key === '/')) showKeyboardShortcuts();
+  if (key === 'l' && e.ctrlKey) { e.preventDefault(); logout(); }
+});
+
+// Navigate to page function
+function navigateToPage(page) {
+  const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (navItem) {
+    navItem.click();
+  }
+}
+
+// Toggle theme quickly
+function toggleQuickTheme() {
+  const currentTheme = localStorage.getItem('adminTheme') || 'dark';
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  setTheme(newTheme);
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === newTheme);
+  });
+  showToast(`Theme: ${newTheme.charAt(0).toUpperCase() + newTheme.slice(1)}`);
+}
+
+// Show keyboard shortcuts modal
+function showKeyboardShortcuts() {
+  document.getElementById('shortcutsModal')?.classList.add('active');
+}
+
+// Hide keyboard shortcuts modal
+function hideKeyboardShortcuts() {
+  document.getElementById('shortcutsModal')?.classList.remove('active');
+}
+
+// Click outside to close shortcuts modal
+document.getElementById('shortcutsModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'shortcutsModal') hideKeyboardShortcuts();
+});
+
+// Export all data
+async function exportAllData() {
+  try {
+    showToast('Preparing export...');
+    const res = await fetchAuth('/backup');
+    if (res.ok) {
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `portfolio-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Export downloaded! ✅');
+    } else {
+      showToast('Export failed');
+    }
+  } catch {
+    showToast('Export error');
+  }
+}
+
+// SESSION MANAGEMENT
+let sessionTimer;
+let sessionWarningTimer;
+const SESSION_DURATION = 30 * 60 * 1000; // 30 minutes
+const WARNING_TIME = 5 * 60 * 1000; // 5 minutes before expiry
+
+function startSessionTimer() {
+  clearTimeout(sessionTimer);
+  clearTimeout(sessionWarningTimer);
+
+  // Show warning 5 minutes before session expires
+  sessionWarningTimer = setTimeout(() => {
+    showSessionWarning();
+  }, SESSION_DURATION - WARNING_TIME);
+
+  // Auto logout after session duration
+  sessionTimer = setTimeout(() => {
+    showToast('Session expired. Please login again.');
+    logout();
+  }, SESSION_DURATION);
+}
+
+function showSessionWarning() {
+  const warning = document.getElementById('sessionWarning');
+  if (warning) {
+    warning.style.display = 'block';
+    startCountdown();
+  }
+}
+
+function dismissSessionWarning() {
+  document.getElementById('sessionWarning').style.display = 'none';
+}
+
+function extendSession() {
+  startSessionTimer();
+  dismissSessionWarning();
+  showToast('Session extended! ✅');
+}
+
+let countdownInterval;
+function startCountdown() {
+  let timeLeft = 5 * 60; // 5 minutes
+  const countdownEl = document.getElementById('sessionCountdown');
+
+  clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    if (countdownEl) {
+      countdownEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+    timeLeft--;
+    if (timeLeft < 0) {
+      clearInterval(countdownInterval);
+    }
+  }, 1000);
+}
+
+// LAST LOGIN TRACKING
+function updateLastLogin() {
+  const lastLogin = localStorage.getItem('lastLogin');
+  const lastLoginText = document.getElementById('lastLoginText');
+
+  if (lastLoginText) {
+    if (lastLogin) {
+      const date = new Date(lastLogin);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      let timeAgo;
+      if (diffDays > 0) timeAgo = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      else if (diffHours > 0) timeAgo = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      else if (diffMins > 0) timeAgo = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+      else timeAgo = 'Just now';
+
+      lastLoginText.textContent = `Last login: ${timeAgo}`;
+    } else {
+      lastLoginText.textContent = 'First time login! Welcome!';
+    }
+  }
+
+  // Save current login time
+  localStorage.setItem('lastLogin', new Date().toISOString());
+}
+
+// UNSAVED CHANGES DETECTION
+let hasUnsavedChanges = false;
+
+function trackFormChanges() {
+  document.querySelectorAll('form input, form textarea, form select').forEach(el => {
+    el.addEventListener('change', () => {
+      showUnsavedIndicator();
+    });
+  });
+}
+
+function showUnsavedIndicator() {
+  hasUnsavedChanges = true;
+  document.getElementById('unsavedIndicator').style.display = 'flex';
+}
+
+function hideUnsavedIndicator() {
+  hasUnsavedChanges = false;
+  document.getElementById('unsavedIndicator').style.display = 'none';
+}
+
+// Warn before leaving with unsaved changes
+window.addEventListener('beforeunload', (e) => {
+  if (hasUnsavedChanges) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// UPDATE UNREAD COUNT
+function updateUnreadCount(count) {
+  const unreadEl = document.getElementById('unreadCount');
+  if (unreadEl) {
+    unreadEl.textContent = `${count || 0} unread`;
+  }
+}
+
+// Initialize admin features on dashboard load
+const originalShowDashboard = showDashboard;
+showDashboard = function () {
+  originalShowDashboard();
+  startSessionTimer();
+  updateLastLogin();
+  trackFormChanges();
+  console.log('🎛️ Admin dashboard loaded with professional features');
+  console.log('💡 Press ? for keyboard shortcuts');
+};
+
+// Export new functions
+window.navigateToPage = navigateToPage;
+window.showKeyboardShortcuts = showKeyboardShortcuts;
+window.hideKeyboardShortcuts = hideKeyboardShortcuts;
+window.exportAllData = exportAllData;
+window.extendSession = extendSession;
+window.dismissSessionWarning = dismissSessionWarning;
+
+// ================================
+// SESSION MANAGEMENT (NEW)
+// ================================
+
+async function loadSessionsOld() {
+  const tbody = document.getElementById('sessionsList');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center"><div class="loading-spinner"></div> Loading sessions...</td></tr>';
+
+  try {
+    const res = await fetch(`${API}/auth/sessions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Session tracking not enabled yet.</td></tr>';
+        return;
+      }
+      throw new Error('Failed to fetch sessions');
+    }
+
+    const sessions = await res.json();
+
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No other active sessions found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = sessions.map(s => {
+      const isCurrent = (s.device_info && s.device_info.includes('Unknown')) ? '' : '';
+      return `
+      <tr>
+        <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <i class="fas ${getDeviceIcon(s.device_info)} fa-lg ${isCurrent ? 'text-primary' : 'text-secondary'}"></i>
+                <div style="display:flex; flex-direction:column;">
+                    <span style="font-weight:500;">${s.device_info || 'Unknown Device'}</span>
+                    <small style="color:var(--text-muted); font-size:0.8em;">${s.user_agent ? s.user_agent.substring(0, 40) + '...' : ''}</small>
+                </div>
+            </div>
+        </td>
+        <td>${s.ip_address || 'Unknown IP'}</td>
+        <td>${new Date(s.last_active).toLocaleString()}</td>
+        <td>
+            <button class="btn btn-sm btn-outline-danger" onclick="revokeSession('${s.id}')" title="Revoke Access">
+                <i class="fas fa-times"></i> Revoke
+            </button>
+        </td>
+      </tr>
+    `}).join('');
+
+  } catch (error) {
+    console.error('Error loading sessions:', error);
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading sessions: ${error.message}</td></tr>`;
+  }
+}
+
+function getDeviceIconOld(device) {
+  if (!device) return 'fa-desktop';
+  const d = device.toLowerCase();
+  if (d.includes('iphone') || d.includes('ios') || d.includes('mobile')) return 'fa-mobile-alt';
+  if (d.includes('android')) return 'fa-android';
+  if (d.includes('mac') || d.includes('macintosh')) return 'fa-apple';
+  if (d.includes('windows')) return 'fa-windows';
+  if (d.includes('linux')) return 'fa-linux';
+  return 'fa-desktop';
+}
+
+// Session Logout Modal Logic
+let sessionToDeleteId = null;
+
+function setupLogoutModal() {
+  const modal = document.getElementById('sessionLogoutModal');
+  if (!modal) return;
+
+  // Remove existing listeners to avoid duplicates if re-run (though simplified here)
+  // Actually simpler to just define global handler? No, closures.
+  // We'll rely on this running once.
+
+  const confirmBtn = document.getElementById('sessionLogoutConfirmBtn');
+  const cancelBtn = document.getElementById('sessionLogoutCancelBtn');
+
+  if (confirmBtn) {
+    // Clone to remove old listeners if any
+    const newBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+
+    newBtn.addEventListener('click', async () => {
+      if (!sessionToDeleteId) return;
+
+      newBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging out...';
+      newBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${API}/auth/sessions/${sessionToDeleteId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          showToast('Device logged out successfully');
+          loadSessions();
+          modal.classList.remove('active');
+        } else {
+          const data = await res.json();
+          showToast(data.message || 'Failed to logout');
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message);
+      } finally {
+        newBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout Device';
+        newBtn.disabled = false;
+      }
+    });
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      modal.classList.remove('active');
+      sessionToDeleteId = null;
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.remove('active');
+  });
+}
+
+// Initialize listeners
+setupLogoutModal();
+
+async function revokeSession(id) {
+  sessionToDeleteId = id;
+  const modal = document.getElementById('sessionLogoutModal');
+  if (modal) {
+    modal.classList.add('active');
+  } else {
+    // Fallback
+    if (confirm('Are you sure you want to logout this device?')) {
+      try {
+        await fetch(`${API}/auth/sessions/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        showToast('Device logged out');
+        loadSessions();
+      } catch (e) { showToast('Error'); }
+    }
+  }
+}
+
+async function logoutOtherSessions() {
+  if (!confirm('Are you sure you want to logout from ALL devices? This includes your current session.')) return;
+
+  try {
+    const res = await fetchAuth('/auth/sessions?all=true', {
+      method: 'DELETE'
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      showToast(data.message || 'Logged out from all devices');
+      // Force local logout
+      setTimeout(() => {
+        handleLogout();
+      }, 1000);
+    } else {
+      showToast(data.message || 'Failed to logout all devices', 'error');
+    }
+  } catch (error) {
+    console.error('Logout All Error:', error);
+    showToast('Error logging out devices', 'error');
+  }
+}
+
+// Export functions to window
+
+
+// ================================
+// NEW CARD-BASED SESSION UI
+// ================================
+
+async function loadSessions() {
+  const container = document.getElementById('sessionsList');
+  if (!container) return;
+
+  // Loading state with skeleton
+  container.innerHTML = `
+    <div class="session-loading">
+      <div class="loading-spinner"></div>
+      <p>Loading active sessions...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`${API}/auth/sessions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-ghost fa-3x mb-3"></i>
+            <p>Session tracking not enabled yet.</p>
+          </div>
+        `;
+        return;
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Server Error (${res.status})`);
+    }
+
+    const sessions = await res.json();
+
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <i class="fas fa-shield-alt fa-3x mb-3"></i>
+          <p>No active sessions found</p>
+          <small>You'll see all your active devices here</small>
+        </div>
+      `;
+      return;
+    }
+
+    // Get current token hash to identify current session
+    const currentTokenHash = await getCurrentTokenHash();
+
+    // Render enhanced session cards
+    container.innerHTML = sessions.map(session => {
+      // Parse device info - handle both old string format and new object format
+      let deviceInfo;
+
+      if (typeof session.device_info === 'object' && session.device_info !== null) {
+        // New format - already an object
+        deviceInfo = session.device_info;
+      } else if (typeof session.device_info === 'string') {
+        // Old format - parse string to extract info
+        deviceInfo = parseOldDeviceInfo(session.device_info, session.user_agent);
+      } else {
+        // Fallback - parse from user agent
+        deviceInfo = parseOldDeviceInfo('Unknown Device', session.user_agent);
+      }
+
+      const isCurrent = session.token_hash === currentTokenHash;
+      const deviceIcon = getDeviceIcon(deviceInfo.deviceType, deviceInfo.browser);
+      const browserBadge = getBrowserBadge(deviceInfo.browser);
+      const timeInfo = getTimeInfo(session.created_at, session.last_active);
+
+      return `
+        <div class="session-card-new ${isCurrent ? 'is-current' : ''}">
+          ${isCurrent ? '<div class="badge-current">✓ This Device</div>' : ''}
+          
+          <div class="session-top">
+            <div class="session-device">
+              <div class="device-icon-large ${deviceInfo.deviceType}">
+                ${deviceIcon}
+              </div>
+              <div class="device-info-text">
+                <h3 class="device-name">${deviceInfo.summary || 'Unknown Device'}</h3>
+                <p class="device-subtitle">${deviceInfo.browser} • ${deviceInfo.os}</p>
+              </div>
+            </div>
+            ${browserBadge}
+          </div>
+          
+          <div class="session-details-clean">
+            <div class="detail-row">
+              <div class="detail-label">
+                <i class="fas fa-globe"></i>
+                <span>Browser</span>
+              </div>
+              <div class="detail-value">${deviceInfo.browser} ${deviceInfo.browserVersion || ''}</div>
+            </div>
+            
+            <div class="detail-row">
+              <div class="detail-label">
+                <i class="fas fa-laptop"></i>
+                <span>Operating System</span>
+              </div>
+              <div class="detail-value">${deviceInfo.os} ${deviceInfo.osVersion || ''}</div>
+            </div>
+            
+            <div class="detail-row">
+              <div class="detail-label">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>IP Address</span>
+              </div>
+              <div class="detail-value">${maskIP(session.ip_address)}</div>
+            </div>
+            
+            <div class="detail-row">
+              <div class="detail-label">
+                <i class="fas fa-clock"></i>
+                <span>Last Active</span>
+              </div>
+              <div class="detail-value">${timeInfo.lastActive}</div>
+            </div>
+            
+            <div class="detail-row">
+              <div class="detail-label">
+                <i class="fas fa-sign-in-alt"></i>
+                <span>Signed In</span>
+              </div>
+              <div class="detail-value">${timeInfo.created}</div>
+            </div>
+            
+            <div class="detail-row">
+              <div class="detail-label">
+                <i class="fas fa-hourglass-half"></i>
+                <span>Session Duration</span>
+              </div>
+              <div class="detail-value">${timeInfo.duration}</div>
+            </div>
+          </div>
+          
+          <div class="session-actions-new">
+            <div class="status-badge ${isCurrent ? 'status-active' : 'status-inactive'}">
+              <i class="fas fa-circle"></i>
+              <span>${isCurrent ? 'Active Now' : 'Active'}</span>
+            </div>
+            ${!isCurrent ? `
+              <button class="btn-logout-session" onclick="revokeSessionWithConfirm('${session.id}')">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout Device
+              </button>
+            ` : `
+              <button class="btn-current-device" disabled>
+                <i class="fas fa-check-circle"></i>
+                Current Device
+              </button>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (error) {
+    console.error('Error loading sessions:', error);
+    container.innerHTML = `
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Error loading sessions:</strong> ${error.message}
+      </div>
+    `;
+  }
+}
+
+// Helper: Get current token hash (for highlighting current session)
+async function getCurrentTokenHash() {
+  if (!token) return null;
+  try {
+    const crypto = window.crypto || window.msCrypto;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(token);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return null;
+  }
+}
+
+// Helper: Get device icon based on type and browser
+function getDeviceIcon(deviceType, browser) {
+  const icons = {
+    mobile: '<i class="fas fa-mobile-alt"></i>',
+    tablet: '<i class="fas fa-tablet-alt"></i>',
+    desktop: '<i class="fas fa-desktop"></i>'
+  };
+  return icons[deviceType] || icons.desktop;
+}
+
+// Helper: Get browser badge/icon
+function getBrowserBadge(browser) {
+  const badges = {
+    'Google Chrome': '<div class="browser-badge chrome"><i class="fab fa-chrome"></i></div>',
+    'Mozilla Firefox': '<div class="browser-badge firefox"><i class="fab fa-firefox-browser"></i></div>',
+    'Microsoft Edge': '<div class="browser-badge edge"><i class="fab fa-edge"></i></div>',
+    'Safari': '<div class="browser-badge safari"><i class="fab fa-safari"></i></div>',
+    'Opera': '<div class="browser-badge opera"><i class="fab fa-opera"></i></div>'
+  };
+  return badges[browser] || '<div class="browser-badge default"><i class="fas fa-globe"></i></div>';
+}
+
+// Helper: Mask IP for privacy (show first 2 octets only)
+function maskIP(ip) {
+  if (!ip || ip === 'Unknown') return 'Unknown';
+  if (ip.includes('::1') || ip === '127.0.0.1') return 'Localhost';
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.***.***`;
+  }
+  return ip.substring(0, 15) + '...';
+}
+
+// Helper: Get formatted time information
+function getTimeInfo(createdAt, lastActive) {
+  const created = new Date(createdAt);
+  const active = new Date(lastActive);
+  const now = new Date();
+
+  return {
+    created: formatTimeAgo(created),
+    lastActive: formatTimeAgo(active),
+    duration: formatDuration(created, now)
+  };
+}
+
+// Helper: Format time ago
+function formatTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Helper: Format duration
+function formatDuration(start, end) {
+  const seconds = Math.floor((end - start) / 1000);
+
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours`;
+
+  const days = Math.floor(seconds / 86400);
+  return `${days} day${days > 1 ? 's' : ''}`;
+}
+
+// Helper: Parse old string-based device_info into proper object format
+function parseOldDeviceInfo(deviceString, userAgent) {
+  if (!userAgent) {
+    return {
+      summary: deviceString || 'Unknown Device',
+      browser: 'Unknown',
+      os: deviceString || 'Unknown',
+      deviceType: 'desktop',
+      browserVersion: '',
+      osVersion: ''
+    };
+  }
+
+  const ua = userAgent.toLowerCase();
+
+  // Detect Browser
+  let browser = 'Unknown';
+  let browserVersion = '';
+
+  if (ua.includes('edg/')) {
+    const match = ua.match(/edg\/([\d.]+)/);
+    browser = 'Edge';
+    browserVersion = match ? match[1].split('.')[0] : '';
+  } else if (ua.includes('chrome/') && !ua.includes('edg')) {
+    const match = ua.match(/chrome\/([\d.]+)/);
+    browser = 'Chrome';
+    browserVersion = match ? match[1].split('.')[0] : '';
+  } else if (ua.includes('firefox/')) {
+    const match = ua.match(/firefox\/([\d.]+)/);
+    browser = 'Firefox';
+    browserVersion = match ? match[1].split('.')[0] : '';
+  } else if (ua.includes('safari/') && !ua.includes('chrome')) {
+    const match = ua.match(/version\/([\d.]+)/);
+    browser = 'Safari';
+    browserVersion = match ? match[1].split('.')[0] : '';
+  } else if (ua.includes('opera') || ua.includes('opr/')) {
+    const match = ua.match(/(?:opera|opr)\/([\d.]+)/);
+    browser = 'Opera';
+    browserVersion = match ? match[1].split('.')[0] : '';
+  }
+
+  // Detect OS
+  let os = 'Unknown';
+  let osVersion = '';
+
+  if (ua.includes('windows nt 10.0')) {
+    os = 'Windows 10/11';
+  } else if (ua.includes('windows nt 6.3')) {
+    os = 'Windows 8.1';
+  } else if (ua.includes('windows nt 6.2')) {
+    os = 'Windows 8';
+  } else if (ua.includes('windows nt 6.1')) {
+    os = 'Windows 7';
+  } else if (ua.includes('windows')) {
+    os = 'Windows';
+  } else if (ua.includes('mac os x')) {
+    const match = ua.match(/mac os x ([\d_]+)/);
+    os = 'macOS';
+    osVersion = match ? match[1].replace(/_/g, '.').split('.').slice(0, 2).join('.') : '';
+  } else if (ua.includes('android')) {
+    const match = ua.match(/android ([\d.]+)/);
+    os = 'Android';
+    osVersion = match ? match[1].split('.')[0] : '';
+  } else if (ua.includes('iphone')) {
+    const match = ua.match(/os ([\d_]+)/);
+    os = 'iOS';
+    osVersion = match ? match[1].replace(/_/g, '.').split('.')[0] : '';
+  } else if (ua.includes('ipad')) {
+    const match = ua.match(/os ([\d_]+)/);
+    os = 'iPadOS';
+    osVersion = match ? match[1].replace(/_/g, '.').split('.')[0] : '';
+  } else if (ua.includes('linux')) {
+    os = 'Linux';
+  } else if (ua.includes('cros')) {
+    os = 'Chrome OS';
+  }
+
+  // Detect Device Type
+  let deviceType = 'desktop';
+  if (ua.includes('mobile') || (ua.includes('android') && !ua.includes('tablet'))) {
+    deviceType = 'mobile';
+  } else if (ua.includes('tablet') || ua.includes('ipad')) {
+    deviceType = 'tablet';
+  }
+
+  // Build summary
+  let emoji = '💻';
+  if (deviceType === 'mobile') emoji = '📱';
+  else if (deviceType === 'tablet') emoji = '📲';
+
+  const summary = `${emoji} ${browser} on ${os}`;
+
+  return {
+    summary,
+    browser,
+    browserVersion,
+    os,
+    osVersion,
+    deviceType,
+    fullUA: userAgent
+  };
+}
+
+
+async function logoutOtherSessions() {
+  if (!confirm('Are you sure you want to logout all OTHER devices? Your current session will stay active.')) return;
+
+  try {
+    const btn = document.querySelector('button[onclick="logoutOtherSessions()"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging out...';
+    }
+
+    const res = await fetch(`${API}/auth/sessions`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (res.ok) {
+      showToast('✅ All other sessions logged out successfully');
+      loadSessions();
+    } else {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to logout others');
+    }
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    const btn = document.querySelector('button[onclick="logoutOtherSessions()"]');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout All Others';
+    }
+  }
+}
+
+// Wrapper for session revocation with confirm dialog (called from new UI)
+function revokeSessionWithConfirm(id) {
+  revokeSession(id);
+}
+
+// Export functions to window
+window.loadSessions = loadSessions;
+window.revokeSession = revokeSession;
+window.revokeSessionWithConfirm = revokeSessionWithConfirm;
+window.logoutOtherSessions = logoutOtherSessions;
+console.log('Session Management Module Loaded');
