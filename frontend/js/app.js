@@ -1,7 +1,5 @@
-// Connect to Local Backend
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:5000/api'
-  : 'https://backend-mu-sage.vercel.app/api';
+// Connect to Backend (Production Only)
+const API = 'https://backend-mu-sage.vercel.app/api';
 
 // State
 let allSkills = [], allProjects = [], allServices = [], allCerts = [];
@@ -16,13 +14,218 @@ let textIndex = 0, charIndex = 0, isDeleting = false;
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
   updateFooterYear(); // Auto update copyright year
-  await loadAllData();
+
+  // 🚀 OPTIMIZATION: Prioritize Hero & Initial Experience 
+  // Load critical data first, then hide loader immediately to improve perceived speed
+  await loadProfile();
+  hideLoader();
   startTyping();
-  setupEvents();
-  initTheme();
-  trackVisit(); // Silent analytics
-  hideLoader(); // Smooth loading
+
+  // Load remaining data in background (non-blocking)
+  Promise.all([
+    loadSettings(), // ⚙️ Load site settings (title, desc, theme)
+    loadSkills(),
+    loadEducation(),
+    loadProjects(),
+    loadServices(),
+    loadCertificates()
+  ]).then(() => {
+    console.log('✅ All background data loaded');
+    setupEvents();
+    initTheme();
+    trackVisit();
+  });
+
+  // Initialize Supabase Realtime AFTER page loads
+  setTimeout(initRealtimeUpdates, 2000);
+
+  // Safety fallback: ensure loader is hidden even if APIs are slow
+  setTimeout(hideLoader, 4000);
 });
+
+// ===========================================
+// SUPABASE REALTIME - Live Updates from Admin
+// ===========================================
+
+function initRealtimeUpdates(retryCount = 0) {
+  // Check if realtime module is loaded (it loads async/defer)
+  if (typeof subscribeToMainPageUpdates !== 'function') {
+    // Retry up to 5 times with 1 second delay
+    if (retryCount < 5) {
+      console.log(`⏳ Waiting for Supabase Realtime... (attempt ${retryCount + 1})`);
+      setTimeout(() => initRealtimeUpdates(retryCount + 1), 1000);
+      return;
+    }
+    console.warn('⚠️ Supabase Realtime module not available');
+    return;
+  }
+
+  // Subscribe to all portfolio data changes
+  subscribeToMainPageUpdates({
+    // When profile is updated (name, bio, photo, etc.)
+    onProfileUpdate: (payload) => {
+      console.log('🔄 Reloading profile due to real-time update');
+      showRealtimeNotification('Profile updated');
+      loadProfile();
+    },
+
+    // When skills are updated
+    onSkillsUpdate: (payload) => {
+      console.log('🔄 Reloading skills due to real-time update');
+      showRealtimeNotification('Skills updated');
+      loadSkills();
+    },
+
+    // When projects are updated
+    onProjectsUpdate: (payload) => {
+      console.log('🔄 Reloading projects due to real-time update');
+      showRealtimeNotification('Projects updated');
+      loadProjects();
+    },
+
+    // When education is updated
+    onEducationUpdate: (payload) => {
+      console.log('🔄 Reloading education due to real-time update');
+      showRealtimeNotification('Education updated');
+      loadEducation();
+    },
+
+    // When services are updated
+    onServicesUpdate: (payload) => {
+      console.log('🔄 Reloading services due to real-time update');
+      showRealtimeNotification('Services updated');
+      loadServices();
+    },
+
+    // When certificates are updated
+    onCertificatesUpdate: (payload) => {
+      console.log('🔄 Reloading certificates due to real-time update');
+      showRealtimeNotification('Certificates updated');
+      loadCertificates();
+    },
+    onSettingsUpdate: (payload) => {
+      console.log('🔄 Applying settings from database sync');
+      const settings = payload.new || payload;
+      if (settings) {
+        if (settings.primary_color && window.ThemeService) {
+          window.ThemeService.applyThemeColor(settings.primary_color);
+        }
+        if (typeof updateSiteInfo === 'function') {
+          updateSiteInfo({
+            siteName: settings.site_name,
+            siteDescription: settings.site_description,
+            seoKeywords: settings.seo_keywords
+          });
+        }
+      }
+    }
+  });
+
+  // Register Global Theme Sync (Achha Realtime ✅)
+  if (typeof registerThemeCallback === 'function') {
+    registerThemeCallback((data) => {
+      if (data && data.primary_color && window.ThemeService) {
+        window.ThemeService.applyThemeColor(data.primary_color);
+      }
+    });
+  }
+
+  console.log('🚀 Real-time updates enabled - Admin changes will reflect instantly!');
+}
+
+// Show subtle notification for real-time updates
+function showRealtimeNotification(message) {
+  // Create or update a subtle indicator
+  let indicator = document.getElementById('realtimeIndicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'realtimeIndicator';
+    indicator.style.cssText = `
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: slideInRight 0.3s ease;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    `;
+    document.body.appendChild(indicator);
+
+    // Add keyframes for animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(100%); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  indicator.innerHTML = `<i class="fas fa-sync-alt" style="animation: spin 1s linear infinite;"></i> ${message}`;
+  indicator.style.opacity = '1';
+  indicator.style.transform = 'translateX(0)';
+
+  // Hide after 2 seconds
+  setTimeout(() => {
+    indicator.style.opacity = '0';
+    indicator.style.transform = 'translateX(100%)';
+  }, 2000);
+}
+
+// Global state for site settings
+window.currentSiteSettings = {
+  siteName: 'Md Azad Ansari',
+  siteDescription: 'CSE Student & Web Developer Portfolio',
+  seoKeywords: ''
+};
+
+// Update site information dynamically
+function updateSiteInfo(settings) {
+  if (!settings) return;
+
+  // Extract values with priority to camelCase, then snake_case
+  const siteName = settings.siteName || settings.site_name;
+  const siteDescription = settings.siteDescription || settings.site_description;
+  const seoKeywords = settings.seoKeywords || settings.seo_keywords;
+
+  // Store in global state
+  window.currentSiteSettings = {
+    ...window.currentSiteSettings,
+    siteName: siteName || window.currentSiteSettings.siteName,
+    siteDescription: siteDescription || window.currentSiteSettings.siteDescription,
+    seoKeywords: seoKeywords || window.currentSiteSettings.seoKeywords
+  };
+
+  // Update Title & Footer
+  if (siteName) {
+    document.title = siteName;
+    const footerName = document.querySelector('.footer-brand h2');
+    if (footerName) footerName.textContent = siteName;
+  }
+
+  // Update Meta Tags
+  if (siteDescription) {
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.setAttribute('content', siteDescription);
+  }
+
+  if (seoKeywords) {
+    const metaKeywords = document.querySelector('meta[name="keywords"]');
+    if (metaKeywords) metaKeywords.setAttribute('content', seoKeywords);
+  }
+}
 
 // Auto update copyright year
 function updateFooterYear() {
@@ -83,6 +286,20 @@ function setupEvents() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => filterSkills(btn.dataset.filter));
   });
+
+  // Close mobile menu when clicking outside
+  document.addEventListener('click', (e) => {
+    const menuBtn = document.getElementById('menuBtn');
+    const navMenu = document.getElementById('navMenu');
+
+    if (navMenu.classList.contains('active')) {
+      // Check if click is outside menu and not on menu button
+      if (!navMenu.contains(e.target) && !menuBtn.contains(e.target)) {
+        menuBtn.classList.remove('active');
+        navMenu.classList.remove('active');
+      }
+    }
+  });
 }
 
 function initTheme() {
@@ -95,11 +312,61 @@ function initTheme() {
 
 function setTheme(theme) {
   localStorage.setItem('theme', theme);
+  let activeTheme = theme;
   if (theme === 'system') {
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.dataset.theme = systemDark ? 'dark' : 'light';
-  } else {
-    document.documentElement.dataset.theme = theme;
+    activeTheme = systemDark ? 'dark' : 'light';
+  }
+  document.documentElement.dataset.theme = activeTheme;
+  updateFavicon(activeTheme);
+  updateThemeLogos(activeTheme);
+}
+
+function updateThemeLogos(theme) {
+  const logoImg = theme === 'dark'
+    ? 'assets/favicon-dark-128.png'
+    : 'assets/favicon-light-128.png';
+
+  // Update loader logo
+  const loaderLogo = document.querySelector('.loader-logo');
+  if (loaderLogo) {
+    loaderLogo.innerHTML = `<img src="${logoImg}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    loaderLogo.style.background = 'none';
+    loaderLogo.style.borderRadius = '50%';
+    loaderLogo.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+  }
+
+  // Update navbar and footer logos
+  document.querySelectorAll('.logo-icon').forEach(el => {
+    el.innerHTML = `<img src="${logoImg}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    el.style.background = 'none';
+    el.style.borderRadius = '50%';
+    el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+  });
+
+  // Update hero initials/placeholder
+  const heroInitials = document.getElementById('heroInitials');
+  if (heroInitials) {
+    heroInitials.innerHTML = `<img src="${logoImg}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    heroInitials.style.background = 'none';
+    heroInitials.style.borderRadius = '50%';
+    heroInitials.style.boxShadow = '0 10px 30px rgba(0,0,0,0.15)';
+  }
+}
+
+function updateFavicon(theme) {
+  const sizes = [16, 32, 48, 64, 128, 192, 256, 512];
+  sizes.forEach(size => {
+    const link = document.querySelector(`link[sizes="${size}x${size}"]`) || document.querySelector(`link[sizes="${size}x${size}"]`);
+    if (link) {
+      link.href = `assets/favicon-${theme}-${size}.png`;
+    }
+  });
+
+  // Update main favicon if it exists without sizes
+  const mainFavicon = document.querySelector('link[rel="icon"]:not([sizes])');
+  if (mainFavicon) {
+    mainFavicon.href = `assets/favicon-${theme}-32.png`;
   }
 }
 
@@ -134,7 +401,20 @@ function startTyping() {
 }
 
 async function loadAllData() {
-  await Promise.all([loadProfile(), loadSkills(), loadEducation(), loadProjects(), loadServices(), loadCertificates()]);
+  await Promise.all([loadProfile(), loadSettings(), loadSkills(), loadEducation(), loadProjects(), loadServices(), loadCertificates()]);
+}
+
+async function loadSettings() {
+  try {
+    const data = await fetchData('/settings');
+    if (data && typeof updateSiteInfo === 'function') {
+      updateSiteInfo(data);
+    }
+    return data;
+  } catch (err) {
+    console.warn('Failed to load settings', err);
+    return null;
+  }
 }
 
 async function fetchData(endpoint) {
@@ -382,7 +662,15 @@ async function loadEducation() {
     return;
   }
 
-  document.getElementById('educationList').innerHTML = edu.map(e => `
+  // Sort by end year descending (newest first), then by start year
+  const sortedEdu = [...edu].sort((a, b) => {
+    const endA = parseInt(a.endYear) || 9999; // "Present" treated as highest
+    const endB = parseInt(b.endYear) || 9999;
+    if (endB !== endA) return endB - endA;
+    return (parseInt(b.startYear) || 0) - (parseInt(a.startYear) || 0);
+  });
+
+  document.getElementById('educationList').innerHTML = sortedEdu.map(e => `
     <div class="edu-card">
       <p class="date"><i class="fas fa-calendar"></i> ${e.startYear} - ${e.endYear}</p>
       <h3>${e.degree} in ${e.field}</h3>
@@ -398,7 +686,16 @@ async function loadProjects() {
 }
 
 function renderProjects() {
-  const toShow = projectsExpanded ? allProjects : allProjects.slice(0, INITIAL_COUNT);
+  // Sort: Featured projects first, then by order/date
+  const sortedProjects = [...allProjects].sort((a, b) => {
+    // Featured first
+    if (a.featured && !b.featured) return -1;
+    if (!a.featured && b.featured) return 1;
+    // Then by order or date
+    return (a.order || 0) - (b.order || 0);
+  });
+
+  const toShow = projectsExpanded ? sortedProjects : sortedProjects.slice(0, INITIAL_COUNT);
 
 
   let html = '';
@@ -416,8 +713,8 @@ function renderProjects() {
         </div>
         <div class="project-content">
           <h3>${p.title}</h3>
-          <p>${p.description?.substring(0, 100)}...</p>
-          <div class="project-tags">${(p.technologies || []).slice(0, 4).map(t => `<span class="tag">${t}</span>`).join('')}</div>
+          <p class="project-desc">${p.description || 'No description available.'}</p>
+          <div class="project-tags">${(p.technologies || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>
           <div class="project-links">
             ${p.liveUrl && p.liveUrl !== '#' ? `<a href="${p.liveUrl}" target="_blank" class="project-link"><i class="fas fa-external-link-alt"></i> Live</a>` : ''}
             ${p.githubUrl ? `<a href="${p.githubUrl}" target="_blank" class="project-link"><i class="fab fa-github"></i> Code</a>` : ''}
@@ -648,18 +945,33 @@ document.addEventListener('click', async (e) => {
 
 // 4. NATIVE SHARE API (for mobile)
 async function sharePortfolio() {
+  const shareTitle = window.currentSiteSettings?.siteName || 'Md Azad - Portfolio';
+  const shareDesc = window.currentSiteSettings?.siteDescription || 'CSE Student & Web Developer';
+  const shareUrl = window.location.origin + window.location.pathname;
+
+  const shareText = `Check out ${shareTitle}'s professional portfolio! 🚀\n\n${shareDesc}`;
+
   if (navigator.share) {
     try {
       await navigator.share({
-        title: 'Md Azad - Portfolio',
-        text: 'Check out my portfolio website!',
-        url: window.location.href
+        title: shareTitle,
+        text: shareText,
+        url: shareUrl
       });
-    } catch { /* User cancelled */ }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Sharing failed:', err);
+      }
+    }
   } else {
-    // Fallback: copy link
-    await navigator.clipboard.writeText(window.location.href);
-    showToast('Link copied! 🔗');
+    // Fallback: Copy link with premium feedback
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n🔗 ${shareUrl}`);
+      showToast('Portfolio details copied! 🔗');
+    } catch (err) {
+      console.error('Clipboard copy failed:', err);
+      showToast('Failed to copy link ❌');
+    }
   }
 }
 
@@ -726,7 +1038,9 @@ if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
   document.documentElement.style.scrollBehavior = 'auto';
 }
 
-// 10. AUTO-HIDE NAVBAR ON SCROLL DOWN
+// 10. AUTO-HIDE NAVBAR ON SCROLL DOWN (DISABLED - Keep navbar always visible)
+// Uncomment below to enable auto-hide on scroll
+/*
 let lastScrollY = 0;
 window.addEventListener('scroll', () => {
   const navbar = document.getElementById('navbar');
@@ -737,6 +1051,7 @@ window.addEventListener('scroll', () => {
   }
   lastScrollY = window.scrollY;
 }, { passive: true });
+*/
 
 // 11. FOCUS TRAP FOR MOBILE MENU
 document.getElementById('navMenu')?.addEventListener('keydown', (e) => {
@@ -762,3 +1077,458 @@ window.addEventListener('beforeunload', () => {
 
 console.log('🚀 Portfolio loaded with professional features!');
 console.log('💡 Tips: Use ↑↓ arrows to navigate, H for home, C for contact');
+
+// ===========================================
+// MOBILE-FRIENDLY FEATURES & SECTION HELPERS
+// ===========================================
+
+// 13. DOUBLE TAP TO SCROLL TOP (Mobile)
+let lastTap = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTap < 300 && e.target.closest('#navbar')) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  lastTap = now;
+});
+
+// 14. TOUCH RIPPLE EFFECT ON BUTTONS (Mobile)
+document.addEventListener('touchstart', (e) => {
+  const btn = e.target.closest('button, .btn, .nav-link');
+  if (btn && !btn.querySelector('.ripple')) {
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.cssText = `
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 50%;
+      transform: scale(0);
+      animation: rippleEffect 0.4s ease-out;
+      pointer-events: none;
+    `;
+    btn.style.position = 'relative';
+    btn.style.overflow = 'hidden';
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 400);
+  }
+}, { passive: true });
+
+// 15. VIBRATION FEEDBACK ON BUTTON CLICK (Mobile)
+function vibrateOnClick() {
+  if ('vibrate' in navigator) {
+    navigator.vibrate(10); // 10ms subtle vibration
+  }
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest('button, .btn')) {
+    vibrateOnClick();
+  }
+});
+
+// 16. GET CURRENT SECTION (Utility)
+function getCurrentSection() {
+  const sections = ['hero', 'about', 'skills', 'education', 'portfolio', 'services', 'certificates', 'contact'];
+  for (const id of sections) {
+    const el = document.getElementById(id);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      if (rect.top <= 150 && rect.bottom > 150) {
+        return id;
+      }
+    }
+  }
+  return 'hero';
+}
+
+// 17. SCROLL TO SECTION (Utility)
+function scrollToSection(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' });
+    return true;
+  }
+  return false;
+}
+
+// 18. GET SKILLS COUNT BY CATEGORY
+function getSkillsCount() {
+  const counts = {};
+  allSkills.forEach(s => {
+    counts[s.category] = (counts[s.category] || 0) + 1;
+  });
+  return { total: allSkills.length, byCategory: counts };
+}
+
+// 19. SEARCH PROJECTS BY TECHNOLOGY
+function findProjectsByTech(tech) {
+  const lowerTech = tech.toLowerCase();
+  return allProjects.filter(p =>
+    (p.technologies || []).some(t => t.toLowerCase().includes(lowerTech))
+  );
+}
+
+// 20. GET FEATURED PROJECTS
+function getFeaturedProjectsList() {
+  return allProjects.filter(p => p.featured);
+}
+
+// 21. GET SCROLL PROGRESS (0-100%)
+function getScrollProgress() {
+  const scrollHeight = document.body.scrollHeight - window.innerHeight;
+  return Math.round((window.scrollY / scrollHeight) * 100);
+}
+
+// 22. SCROLL PROGRESS INDICATOR (Updates on scroll)
+window.addEventListener('scroll', () => {
+  const progress = getScrollProgress();
+  // Update any progress bar if exists
+  const progressBar = document.getElementById('scrollProgress');
+  if (progressBar) {
+    progressBar.style.width = `${progress}%`;
+  }
+}, { passive: true });
+
+// 23. DEVICE DETECTION
+const deviceInfo = {
+  isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent),
+  isTouch: 'ontouchstart' in window,
+  isIOS: /iPhone|iPad|iPod/i.test(navigator.userAgent),
+  isAndroid: /Android/i.test(navigator.userAgent)
+};
+
+// 24. ORIENTATION CHANGE HANDLER (Mobile)
+window.addEventListener('orientationchange', () => {
+  // Close mobile menu on orientation change
+  document.getElementById('menuBtn')?.classList.remove('active');
+  document.getElementById('navMenu')?.classList.remove('active');
+});
+
+// 25. SWIPE GESTURE DETECTION (Mobile)
+let touchStartX = 0;
+let touchEndX = 0;
+
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.changedTouches[0].screenX;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  touchEndX = e.changedTouches[0].screenX;
+  handleSwipe();
+}, { passive: true });
+
+function handleSwipe() {
+  const swipeThreshold = 100;
+  const diff = touchEndX - touchStartX;
+
+  // Swipe right to close mobile menu
+  if (diff > swipeThreshold) {
+    document.getElementById('navMenu')?.classList.remove('active');
+    document.getElementById('menuBtn')?.classList.remove('active');
+  }
+}
+
+// 26. READING TIME ESTIMATOR (About Section)
+function getReadingTime() {
+  const aboutText = document.getElementById('aboutText')?.textContent || '';
+  const words = aboutText.split(/\s+/).length;
+  const readingSpeed = 200; // words per minute
+  const minutes = Math.ceil(words / readingSpeed);
+  return minutes < 1 ? '< 1 min read' : `${minutes} min read`;
+}
+
+// 27. COUNT TOTAL CERTIFICATES BY ISSUER
+function getCertificateStats() {
+  const byIssuer = {};
+  allCerts.forEach(c => {
+    const issuer = c.issuer || 'Unknown';
+    byIssuer[issuer] = (byIssuer[issuer] || 0) + 1;
+  });
+  return { total: allCerts.length, byIssuer };
+}
+
+// 28. QUICK CONTACT VIA WHATSAPP (if available)
+function openWhatsApp(message = 'Hello! I found your portfolio and wanted to connect.') {
+  const whatsappEl = document.getElementById('whatsapp');
+  if (whatsappEl) {
+    const url = whatsappEl.href;
+    window.open(`${url}?text=${encodeURIComponent(message)}`, '_blank');
+    return true;
+  }
+  return false;
+}
+
+// 29. SHARE SPECIFIC SECTION
+async function shareSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+
+  const url = `${window.location.origin}${window.location.pathname}#${sectionId}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `Md Azad - ${sectionId.charAt(0).toUpperCase() + sectionId.slice(1)}`,
+        url: url
+      });
+    } catch { }
+  } else {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied! 🔗');
+  }
+}
+
+// 30. NETWORK STATUS DETECTION
+let isOnline = navigator.onLine;
+window.addEventListener('online', () => {
+  isOnline = true;
+  showToast('Back online! 🌐');
+});
+window.addEventListener('offline', () => {
+  isOnline = false;
+  showToast('You are offline 📴');
+});
+
+// 31. PAGE VISIBILITY (Pause animations when hidden)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Could pause animations here
+    console.log('👁️ Page hidden');
+  } else {
+    console.log('👁️ Page visible');
+  }
+});
+
+// 32. SMOOTH SCROLL POLYFILL CHECK
+if (!('scrollBehavior' in document.documentElement.style)) {
+  console.log('⚠️ Smooth scroll not supported, using fallback');
+}
+
+// Expose utility functions globally
+window.getCurrentSection = getCurrentSection;
+window.scrollToSection = scrollToSection;
+window.getSkillsCount = getSkillsCount;
+window.findProjectsByTech = findProjectsByTech;
+window.getFeaturedProjectsList = getFeaturedProjectsList;
+window.getScrollProgress = getScrollProgress;
+window.getReadingTime = getReadingTime;
+window.getCertificateStats = getCertificateStats;
+window.openWhatsApp = openWhatsApp;
+window.shareSection = shareSection;
+window.sharePortfolio = sharePortfolio;
+window.deviceInfo = deviceInfo;
+window.isOnline = () => isOnline;
+
+console.log('📱 Mobile features enabled!');
+if (deviceInfo.isMobile) {
+  console.log('📲 Mobile device detected - touch features active');
+}
+
+// ===========================================
+// ADDITIONAL UTILITY FUNCTIONS
+// ===========================================
+
+// 33. GET PORTFOLIO STATS SUMMARY
+function getPortfolioStats() {
+  return {
+    skills: allSkills.length,
+    projects: allProjects.length,
+    featuredProjects: allProjects.filter(p => p.featured).length,
+    services: allServices.length,
+    certificates: allCerts.length,
+    totalItems: allSkills.length + allProjects.length + allServices.length + allCerts.length
+  };
+}
+
+// 34. COPY TEXT TO CLIPBOARD
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied! 📋');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 35. COPY EMAIL
+async function copyEmail() {
+  const email = document.getElementById('contactEmail')?.textContent;
+  if (email) {
+    await copyToClipboard(email);
+  }
+}
+
+// 36. COPY PHONE
+async function copyPhone() {
+  const phone = document.getElementById('contactPhone')?.textContent;
+  if (phone) {
+    await copyToClipboard(phone);
+  }
+}
+
+// 37. QUICK CALL (Mobile)
+function quickCall() {
+  const phone = document.getElementById('contactPhone')?.textContent;
+  if (phone && deviceInfo.isMobile) {
+    window.location.href = `tel:${phone.replace(/\s/g, '')}`;
+    return true;
+  }
+  return false;
+}
+
+// 38. SCROLL TO RANDOM PROJECT
+function scrollToRandomProject() {
+  if (allProjects.length > 0) {
+    scrollToSection('projects');
+    showToast(`🎲 ${allProjects.length} projects available!`);
+    return true;
+  }
+  return false;
+}
+
+// 39. GET TIME SINCE PAGE LOAD
+function getTimeSinceLoad() {
+  const seconds = Math.round((Date.now() - sessionStart) / 1000);
+  if (seconds < 60) return `${seconds} seconds`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} minutes`;
+  return `${Math.round(seconds / 3600)} hours`;
+}
+
+// 40. CHECK IF DARK MODE
+function isDarkMode() {
+  return document.documentElement.dataset.theme === 'dark';
+}
+
+// 41. TOGGLE DARK/LIGHT MODE
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme;
+  const newTheme = current === 'dark' ? 'light' : 'dark';
+  setTheme(newTheme);
+  showToast(`${newTheme === 'dark' ? '🌙' : '☀️'} ${newTheme.charAt(0).toUpperCase() + newTheme.slice(1)} mode`);
+}
+
+// 42. GET ALL TECHNOLOGIES USED
+function getAllTechnologies() {
+  const techs = new Set();
+  allProjects.forEach(p => {
+    (p.technologies || []).forEach(t => techs.add(t));
+  });
+  return Array.from(techs).sort();
+}
+
+// 43. COUNT TOTAL WORDS IN PORTFOLIO
+function getTotalWords() {
+  const aboutText = document.getElementById('aboutText')?.textContent || '';
+  let total = aboutText.split(/\s+/).length;
+
+  allProjects.forEach(p => {
+    total += (p.description || '').split(/\s+/).length;
+  });
+
+  allServices.forEach(s => {
+    total += (s.description || '').split(/\s+/).length;
+  });
+
+  return total;
+}
+
+// 44. GET GREETING BASED ON TIME
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning! ☀️';
+  if (hour < 17) return 'Good Afternoon! 🌤️';
+  if (hour < 21) return 'Good Evening! 🌅';
+  return 'Good Night! 🌙';
+}
+
+// 45. QUICK NAVIGATE (Keyboard Shortcut Helper)
+function goTo(section) {
+  const sections = {
+    home: 'hero',
+    about: 'about',
+    skills: 'skills',
+    edu: 'education',
+    education: 'education',
+    projects: 'projects',
+    portfolio: 'projects',
+    services: 'services',
+    certs: 'certificates',
+    certificates: 'certificates',
+    contact: 'contact'
+  };
+
+  const target = sections[section.toLowerCase()];
+  if (target) {
+    scrollToSection(target);
+    return true;
+  }
+  return false;
+}
+
+// 46. GET RANDOM SKILL
+function getRandomSkill() {
+  if (allSkills.length === 0) return null;
+  return allSkills[Math.floor(Math.random() * allSkills.length)];
+}
+
+// 47. GET SKILLS BY PROFICIENCY (above threshold)
+function getTopSkills(minProficiency = 80) {
+  return allSkills.filter(s => s.proficiency >= minProficiency);
+}
+
+// 48. PRINT PORTFOLIO (Opens Print Dialog)
+function printPortfolio() {
+  window.print();
+}
+
+// 49. GET CONTACT INFO
+function getContactInfo() {
+  return {
+    email: document.getElementById('contactEmail')?.textContent || '',
+    phone: document.getElementById('contactPhone')?.textContent || '',
+    location: document.getElementById('contactLocation')?.textContent || ''
+  };
+}
+
+// 50. HIGHLIGHT SECTION (Visual Pulse Effect)
+function highlightSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.style.transition = 'box-shadow 0.3s ease';
+    section.style.boxShadow = '0 0 0 4px var(--primary)';
+    setTimeout(() => {
+      section.style.boxShadow = 'none';
+    }, 1500);
+    scrollToSection(sectionId);
+    return true;
+  }
+  return false;
+}
+
+// Expose new utility functions globally
+window.getPortfolioStats = getPortfolioStats;
+window.copyToClipboard = copyToClipboard;
+window.copyEmail = copyEmail;
+window.copyPhone = copyPhone;
+window.quickCall = quickCall;
+window.scrollToRandomProject = scrollToRandomProject;
+window.getTimeSinceLoad = getTimeSinceLoad;
+window.isDarkMode = isDarkMode;
+window.toggleTheme = toggleTheme;
+window.getAllTechnologies = getAllTechnologies;
+window.getTotalWords = getTotalWords;
+window.getGreeting = getGreeting;
+window.goTo = goTo;
+window.getRandomSkill = getRandomSkill;
+window.getTopSkills = getTopSkills;
+window.printPortfolio = printPortfolio;
+window.getContactInfo = getContactInfo;
+window.highlightSection = highlightSection;
+
+// Show greeting on load
+setTimeout(() => {
+  console.log(`${getGreeting()} Welcome to Md Azad's Portfolio!`);
+  console.log(`📊 Stats: ${getPortfolioStats().totalItems} items loaded`);
+}, 1000);

@@ -19,7 +19,8 @@ const toCamelCase = (settings) => ({
     enableServices: settings.enable_services,
     enableContact: settings.enable_contact,
     maintenanceMode: settings.maintenance_mode,
-    seoKeywords: settings.seo_keywords,
+    // Convert array to comma-separated string for frontend
+    seoKeywords: Array.isArray(settings.seo_keywords) ? settings.seo_keywords.join(', ') : (settings.seo_keywords || ''),
     googleAnalyticsId: settings.google_analytics_id,
     customCss: settings.custom_css,
     customJs: settings.custom_js,
@@ -30,23 +31,43 @@ const toCamelCase = (settings) => ({
 // Helper to convert camelCase to snake_case
 const toSnakeCase = (data) => {
     const result = {};
-    if (data.siteName !== undefined) result.site_name = data.siteName;
-    if (data.siteDescription !== undefined) result.site_description = data.siteDescription;
-    if (data.logo !== undefined) result.logo = data.logo;
-    if (data.favicon !== undefined) result.favicon = data.favicon;
-    if (data.primaryColor !== undefined) result.primary_color = data.primaryColor;
-    if (data.secondaryColor !== undefined) result.secondary_color = data.secondaryColor;
-    if (data.accentColor !== undefined) result.accent_color = data.accentColor;
-    if (data.defaultTheme !== undefined) result.default_theme = data.defaultTheme;
-    if (data.enableBlog !== undefined) result.enable_blog = data.enableBlog;
-    if (data.enableTestimonials !== undefined) result.enable_testimonials = data.enableTestimonials;
-    if (data.enableServices !== undefined) result.enable_services = data.enableServices;
-    if (data.enableContact !== undefined) result.enable_contact = data.enableContact;
-    if (data.maintenanceMode !== undefined) result.maintenance_mode = data.maintenanceMode;
-    if (data.seoKeywords !== undefined) result.seo_keywords = data.seoKeywords;
-    if (data.googleAnalyticsId !== undefined) result.google_analytics_id = data.googleAnalyticsId;
-    if (data.customCss !== undefined) result.custom_css = data.customCss;
-    if (data.customJs !== undefined) result.custom_js = data.customJs;
+    if (data.siteName !== undefined) result.site_name = String(data.siteName || '');
+    if (data.siteDescription !== undefined) result.site_description = String(data.siteDescription || '');
+    if (data.logo !== undefined) result.logo = String(data.logo || '');
+    if (data.favicon !== undefined) result.favicon = String(data.favicon || '');
+    if (data.primaryColor !== undefined) result.primary_color = String(data.primaryColor || '#6366f1');
+    if (data.secondaryColor !== undefined) result.secondary_color = String(data.secondaryColor || '#8b5cf6');
+    if (data.accentColor !== undefined) result.accent_color = String(data.accentColor || '#06b6d4');
+    if (data.defaultTheme !== undefined) result.default_theme = data.defaultTheme || 'dark';
+
+    // Booleans
+    if (data.enableBlog !== undefined) result.enable_blog = Boolean(data.enableBlog);
+    if (data.enableTestimonials !== undefined) result.enable_testimonials = Boolean(data.enableTestimonials);
+    if (data.enableServices !== undefined) result.enable_services = Boolean(data.enableServices);
+    if (data.enableContact !== undefined) result.enable_contact = Boolean(data.enableContact);
+    if (data.maintenanceMode !== undefined) result.maintenance_mode = Boolean(data.maintenanceMode);
+
+    // CRITICAL: Handle seoKeywords conversion to TEXT[]
+    // Ensuring it ALWAYS reaches Supabase as a valid JS array
+    if (data.seoKeywords !== undefined) {
+        if (Array.isArray(data.seoKeywords)) {
+            result.seo_keywords = data.seoKeywords;
+        } else if (typeof data.seoKeywords === 'string') {
+            const trimmed = data.seoKeywords.trim();
+            if (trimmed === '') {
+                result.seo_keywords = []; // Empty array for empty input
+            } else {
+                result.seo_keywords = trimmed.split(',').map(k => k.trim()).filter(k => k !== '');
+            }
+        } else {
+            result.seo_keywords = [];
+        }
+    }
+
+    if (data.googleAnalyticsId !== undefined) result.google_analytics_id = String(data.googleAnalyticsId || '');
+    if (data.customCss !== undefined) result.custom_css = String(data.customCss || '');
+    if (data.customJs !== undefined) result.custom_js = String(data.customJs || '');
+
     return result;
 };
 
@@ -59,24 +80,32 @@ router.get('/', async (req, res) => {
             .select('*')
             .limit(1);
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Database error fetching settings:', error);
+            throw error;
+        }
 
         let result = settings && settings.length > 0 ? settings[0] : null;
 
         // Create default settings if none exists
         if (!result) {
+            console.log('📝 No settings found, creating defaults...');
             const { data: newSettings, error: createError } = await supabase
                 .from('settings')
-                .insert({})
+                .insert({ site_name: 'Md Azad Portfolio' })
                 .select()
                 .single();
 
-            if (createError) throw createError;
+            if (createError) {
+                console.error('❌ Error creating default settings:', createError);
+                throw createError;
+            }
             result = newSettings;
         }
 
         res.json(toCamelCase(result));
     } catch (error) {
+        console.error('❌ Settings GET error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
@@ -85,38 +114,48 @@ router.get('/', async (req, res) => {
 // @desc    Update settings
 router.put('/', authMiddleware, async (req, res) => {
     try {
-        // Get existing settings
-        let { data: settings } = await supabase
-            .from('settings')
-            .select('id')
-            .limit(1);
+        if (!supabase) {
+            return res.status(503).json({
+                message: 'Database connection not available',
+                details: 'Check Vercel environment variables for SUPABASE_URL and SUPABASE_SERVICE_KEY'
+            });
+        }
+        console.log('📥 Updating settings request received');
 
+        // 1. Convert to database format
         const updateData = toSnakeCase(req.body);
 
-        let result;
-        if (!settings || settings.length === 0) {
-            // Create new settings
-            const { data, error } = await supabase
-                .from('settings')
-                .insert(updateData)
-                .select()
-                .single();
-            if (error) throw error;
-            result = data;
-        } else {
-            // Update existing settings
-            const { data, error } = await supabase
-                .from('settings')
-                .update(updateData)
-                .eq('id', settings[0].id)
-                .select()
-                .single();
-            if (error) throw error;
-            result = data;
+        // 2. Clear unwanted fields that shouldn't be updated here
+        delete updateData.id;
+        delete updateData.created_at;
+        updateData.updated_at = new Date();
+
+        // 3. Get existing ID if available (to ensure we update the first record)
+        const { data: existingRecords } = await supabase.from('settings').select('id').limit(1);
+        const existingId = existingRecords && existingRecords.length > 0 ? existingRecords[0].id : null;
+
+        let upsertData = { ...updateData };
+        if (existingId) {
+            upsertData.id = existingId;
         }
 
-        res.json(toCamelCase(result));
+        // 4. Perform upsert
+        console.log('🚀 Upserting settings data...');
+        const { data, error } = await supabase
+            .from('settings')
+            .upsert(upsertData, { onConflict: 'id' })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Supabase Upsert Error:', error);
+            return res.status(400).json({ message: 'Database error', error: error.message });
+        }
+
+        console.log('✅ Settings saved successfully');
+        res.json(toCamelCase(data));
     } catch (error) {
+        console.error('❌ Fatal Settings PUT error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 });

@@ -84,23 +84,17 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
 
-    // Allow localhost and 127.0.0.1 with any port for development
+    // Locked Origins (Production Only)
     const allowedOrigins = [
-      'http://localhost:5500',
-      'http://localhost:5501',
-      'http://localhost:3000',
-      'http://127.0.0.1:5500',
-      'http://127.0.0.1:5501',
-      'http://127.0.0.1:3000',
       'https://mdazad.netlify.app',
       'https://backend-mu-sage.vercel.app'
     ];
 
-    // Check if origin matches exactly or is a localhost variant
-    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+    // Check if origin matches exactly
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all for now (can restrict later)
+      callback(new Error('Origin Not Allowed By CORS'));
     }
   },
   credentials: true,
@@ -326,6 +320,49 @@ app.get('/api/db-status', async (req, res) => {
       database: 'Supabase',
       error: err.message,
       timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Realtime Status Check Endpoint
+app.get('/api/realtime-status', async (req, res) => {
+  try {
+    // Check if realtime is enabled on tables
+    const { data, error } = await supabase.rpc('check_realtime_tables', {});
+
+    if (error) {
+      // If RPC doesn't exist, try direct query
+      const { data: tables, error: tableError } = await supabase
+        .from('pg_publication_tables')
+        .select('*')
+        .eq('pubname', 'supabase_realtime');
+
+      if (tableError) {
+        res.json({
+          status: 'unknown',
+          message: 'Cannot check realtime status. Please run the SQL manually in Supabase Dashboard.',
+          sql: `ALTER PUBLICATION supabase_realtime ADD TABLE profiles, skills, projects, education, services, certificates, contacts;`,
+          error: tableError.message
+        });
+      } else {
+        res.json({
+          status: 'info',
+          realtimeTables: tables || [],
+          requiredTables: ['profiles', 'skills', 'projects', 'education', 'services', 'certificates', 'contacts']
+        });
+      }
+    } else {
+      res.json({
+        status: 'success',
+        realtimeTables: data
+      });
+    }
+  } catch (err) {
+    res.json({
+      status: 'error',
+      message: 'Realtime check failed',
+      hint: 'Please run enable_realtime.sql in Supabase SQL Editor',
+      error: err.message
     });
   }
 });

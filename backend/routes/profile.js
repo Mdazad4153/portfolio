@@ -44,7 +44,24 @@ const toSnakeCase = (data) => {
     if (data.profileImage !== undefined) result.profile_image = data.profileImage;
     if (data.resumeUrl !== undefined) result.resume_url = data.resumeUrl;
     if (data.socialLinks !== undefined) result.social_links = data.socialLinks;
-    if (data.typingTexts !== undefined) result.typing_texts = data.typingTexts;
+    if (data.typingTexts !== undefined) {
+        if (Array.isArray(data.typingTexts)) {
+            result.typing_texts = data.typingTexts;
+        } else if (typeof data.typingTexts === 'string') {
+            const textsString = data.typingTexts.trim();
+            if (textsString === '') {
+                result.typing_texts = [];
+            } else {
+                result.typing_texts = textsString.split(',').map(t => t.trim()).filter(t => t !== '');
+            }
+        } else {
+            result.typing_texts = [];
+        }
+    }
+    // Convert typingTexts to array if it is a comma separated string
+    if (typeof data.typingTexts === 'string' && data.typingTexts.includes(',')) {
+        result.typing_texts = data.typingTexts.split(',').map(t => t.trim()).filter(t => t !== '');
+    }
     if (data.stats !== undefined) result.stats = data.stats;
     if (data.isAvailable !== undefined) result.is_available = data.isAvailable;
     return result;
