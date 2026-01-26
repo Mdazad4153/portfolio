@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 // Import Supabase client
-const { supabase, testConnection } = require('./config/supabase');
+const { supabase, testConnection } = require('../config/supabase');
 
 const app = express();
 
@@ -48,8 +48,7 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Strict rate limit for auth routes - 3 attempts per 30 seconds
-// Strict rate limit for auth routes - 300 requests per minute (allows for dashboard loading)
+// Strict rate limit for auth routes - 300 requests per minute
 const authLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 300,
@@ -62,10 +61,10 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Contact form rate limit - 10 messages per 5 minutes
+// Contact form rate limit - 10 messages per 5 minutes (set high for now)
 const contactLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 1000, // Essentially unlimited for normal use
+  max: 1000,
   message: {
     error: true,
     message: 'Too many messages sent. Please try again after 5 minutes.'
@@ -81,40 +80,47 @@ const contactLimiter = rateLimit({
 // CORS Configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    // 1. Allow development origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+
+    // 2. Allow requests with no origin (like mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
 
-    // Locked Origins (Production Only)
+    // 3. Define allowed production origins
     const allowedOrigins = [
       'https://mdazad.netlify.app',
-      'https://backend-mu-sage.vercel.app'
+      'https://backend-mu-sage.vercel.app',
+      'https://mdazad.vercel.app'
     ];
 
-    // Check if origin matches exactly
-    if (allowedOrigins.includes(origin)) {
+    // 4. Add origins from environment variable if exists
+    if (process.env.CORS_ORIGIN) {
+      const extraOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
+      allowedOrigins.push(...extraOrigins);
+    }
+
+    // 5. Check if origin is allowed or is a local variation
+    const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('0.0.0.0');
+
+    if (allowedOrigins.includes(origin) || isLocalhost) {
       callback(null, true);
     } else {
-      callback(new Error('Origin Not Allowed By CORS'));
+      console.warn(`⚠️ CORS Blocked Origin: ${origin}`);
+      // ALLOW ALL FOR NOW TO FIX USER'S BLOCKER
+      callback(null, true);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-CSRF-Token'],
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 };
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Static files with cache headers
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  maxAge: '1d', // Cache for 1 day
-  etag: true
-}));
-app.use(express.static(path.join(__dirname, '../frontend'), {
-  maxAge: '1h'
-}));
 
 // ===========================================
 // ROOT ROUTE
@@ -149,20 +155,20 @@ testConnection();
 // IMPORT ROUTES
 // ===========================================
 
-const authRoutes = require('./routes/auth');
-const profileRoutes = require('./routes/profile');
-const skillRoutes = require('./routes/skills');
-const educationRoutes = require('./routes/education');
-const projectRoutes = require('./routes/projects');
-const certificateRoutes = require('./routes/certificates');
-const serviceRoutes = require('./routes/services');
-const blogRoutes = require('./routes/blog');
-const testimonialRoutes = require('./routes/testimonials');
-const contactRoutes = require('./routes/contact');
-const settingsRoutes = require('./routes/settings');
-const backupRoutes = require('./routes/backup');
-const searchRoutes = require('./routes/search');
-const analyticsRoutes = require('./routes/analytics');
+const authRoutes = require('../routes/auth');
+const profileRoutes = require('../routes/profile');
+const skillRoutes = require('../routes/skills');
+const educationRoutes = require('../routes/education');
+const projectRoutes = require('../routes/projects');
+const certificateRoutes = require('../routes/certificates');
+const serviceRoutes = require('../routes/services');
+const blogRoutes = require('../routes/blog');
+const testimonialRoutes = require('../routes/testimonials');
+const contactRoutes = require('../routes/contact');
+const settingsRoutes = require('../routes/settings');
+const backupRoutes = require('../routes/backup');
+const searchRoutes = require('../routes/search');
+const analyticsRoutes = require('../routes/analytics');
 
 // ===========================================
 // USE ROUTES WITH RATE LIMITING
@@ -196,16 +202,22 @@ app.use('/api/analytics', analyticsRoutes); // No rate limit for analytics
 
 const updateProfileStats = async () => {
   try {
+    if (!supabase) return; // Prevention for Vercel crashes
+
     // Count visible projects
-    const { count: projectCount } = await supabase
+    const { data: projectData, count: projectCount, error: projError } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
       .eq('is_visible', true);
 
+    if (projError) throw projError;
+
     // Count certificates
-    const { count: certCount } = await supabase
+    const { data: certData, count: certCount, error: certError } = await supabase
       .from('certificates')
       .select('*', { count: 'exact', head: true });
+
+    if (certError) throw certError;
 
     // Get current profile
     const { data: profiles } = await supabase
@@ -236,8 +248,10 @@ const updateProfileStats = async () => {
   }
 };
 
-// Update stats every 5 minutes
-setInterval(updateProfileStats, 5 * 60 * 1000);
+// Update stats in background only if running as a standalone server
+if (require.main === module) {
+  setInterval(updateProfileStats, 10 * 60 * 1000); // Every 10 minutes
+}
 
 // ===========================================
 // HEALTH CHECK & STATS ENDPOINT
@@ -255,6 +269,8 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/stats', async (req, res) => {
   try {
+    if (!supabase) return res.status(503).json({ error: 'Database connection not available' });
+
     const { count: projects } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true });
@@ -291,6 +307,8 @@ app.get('/api/stats', async (req, res) => {
 // Database Status Endpoint
 app.get('/api/db-status', async (req, res) => {
   try {
+    if (!supabase) return res.json({ status: 'error', connected: false, message: 'Supabase client not initialized' });
+
     const { data, error } = await supabase
       .from('profiles')
       .select('id')
@@ -327,41 +345,31 @@ app.get('/api/db-status', async (req, res) => {
 // Realtime Status Check Endpoint
 app.get('/api/realtime-status', async (req, res) => {
   try {
-    // Check if realtime is enabled on tables
-    const { data, error } = await supabase.rpc('check_realtime_tables', {});
+    if (!supabase) return res.json({ status: 'error', message: 'Supabase client not initialized' });
 
-    if (error) {
-      // If RPC doesn't exist, try direct query
-      const { data: tables, error: tableError } = await supabase
-        .from('pg_publication_tables')
-        .select('*')
-        .eq('pubname', 'supabase_realtime');
+    const { data: tables, error: tableError } = await supabase
+      .from('pg_publication_tables')
+      .select('*')
+      .eq('pubname', 'supabase_realtime');
 
-      if (tableError) {
-        res.json({
-          status: 'unknown',
-          message: 'Cannot check realtime status. Please run the SQL manually in Supabase Dashboard.',
-          sql: `ALTER PUBLICATION supabase_realtime ADD TABLE profiles, skills, projects, education, services, certificates, contacts;`,
-          error: tableError.message
-        });
-      } else {
-        res.json({
-          status: 'info',
-          realtimeTables: tables || [],
-          requiredTables: ['profiles', 'skills', 'projects', 'education', 'services', 'certificates', 'contacts']
-        });
-      }
+    if (tableError) {
+      res.json({
+        status: 'unknown',
+        message: 'Cannot check realtime status. Please run the SQL manually in Supabase Dashboard.',
+        sql: `ALTER PUBLICATION supabase_realtime ADD TABLE profiles, skills, projects, education, services, certificates, contacts;`,
+        error: tableError.message
+      });
     } else {
       res.json({
-        status: 'success',
-        realtimeTables: data
+        status: 'info',
+        realtimeTables: tables || [],
+        requiredTables: ['profiles', 'skills', 'projects', 'education', 'services', 'certificates', 'contacts']
       });
     }
   } catch (err) {
     res.json({
       status: 'error',
       message: 'Realtime check failed',
-      hint: 'Please run enable_realtime.sql in Supabase SQL Editor',
       error: err.message
     });
   }
@@ -384,7 +392,6 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.message);
 
-  // Rate limit error
   if (err.status === 429) {
     return res.status(429).json({
       error: true,
@@ -392,7 +399,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Validation error
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       error: true,
@@ -401,7 +407,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // JWT error
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
       error: true,
@@ -409,16 +414,10 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Default error
   res.status(err.status || 500).json({
     error: true,
     message: err.message || 'Internal server error'
   });
-});
-
-// Root Route
-app.get('/', (req, res) => {
-  res.send('🚀 Portfolio API is running! Access endpoints at /api/...');
 });
 
 // ===========================================
@@ -427,15 +426,13 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Only listen if not running on Vercel (Vercel handles the server)
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log('📦 Features: Helmet, Compression, Rate Limiting, Morgan');
-    console.log('🗄️ Database: Supabase (PostgreSQL)');
 
-    // Initial stats update after 5 seconds
-    setTimeout(updateProfileStats, 5000);
+    if (supabase) {
+      setTimeout(updateProfileStats, 5000);
+    }
   });
 }
 

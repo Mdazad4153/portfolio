@@ -7,6 +7,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const bcrypt = require('bcryptjs');
 
 // Supabase Config
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -94,14 +95,17 @@ async function createSupabaseAuthUser(email, password, name) {
 }
 
 // ===========================================
-// LINK AUTH USER TO ADMINS TABLE (Optional)
+// LINK AUTH USER TO ADMINS TABLE (Required for Backend Auth)
 // ===========================================
-async function linkToAdminsTable(authUser, name) {
+async function linkToAdminsTable(authUser, name, password) {
     if (!authUser) return false;
 
     console.log(`\n🔗 Linking to admins table...`);
 
     try {
+        // Hash the password for the local admins table
+        const hashedPassword = await bcrypt.hash(password, 12);
+
         // Check if admin record exists
         const { data: existingAdmin, error: checkError } = await supabase
             .from('admins')
@@ -110,43 +114,43 @@ async function linkToAdminsTable(authUser, name) {
             .single();
 
         if (existingAdmin) {
-            // Update existing record with Supabase user ID
+            // Update existing record with Supabase user ID and Hashed Password
             const { error: updateError } = await supabase
                 .from('admins')
                 .update({
                     supabase_user_id: authUser.id,
-                    name: name
+                    name: name,
+                    password: hashedPassword
                 })
                 .eq('email', authUser.email);
 
             if (updateError) {
                 console.log(`   ⚠️ Could not update admins table: ${updateError.message}`);
             } else {
-                console.log(`   ✅ Updated existing admin record with Supabase Auth ID`);
+                console.log(`   ✅ Updated existing admin record with Supabase Auth ID and hashed password`);
             }
         } else {
             // Create new admin record
-            // Note: Password field might be required by schema, using placeholder
             const { error: insertError } = await supabase
                 .from('admins')
                 .insert({
                     email: authUser.email,
                     name: name,
                     supabase_user_id: authUser.id,
-                    password: 'SUPABASE_AUTH_USER', // Placeholder - auth handled by Supabase
+                    password: hashedPassword,
                     role: 'admin'
                 });
 
             if (insertError) {
                 console.log(`   ⚠️ Could not insert into admins table: ${insertError.message}`);
             } else {
-                console.log(`   ✅ Created new admin record linked to Supabase Auth`);
+                console.log(`   ✅ Created new admin record linked to Supabase Auth with hashed password`);
             }
         }
 
         return true;
     } catch (err) {
-        console.log(`   ⚠️ Linking skipped: ${err.message}`);
+        console.log(`   ⚠️ Linking failed: ${err.message}`);
         return false;
     }
 }
@@ -168,7 +172,7 @@ async function main() {
     );
 
     if (mainAdmin) {
-        await linkToAdminsTable(mainAdmin, ADMIN_CONFIG.name);
+        await linkToAdminsTable(mainAdmin, ADMIN_CONFIG.name, ADMIN_CONFIG.password);
     }
 
     // Create backup admin (if configured)
@@ -180,7 +184,7 @@ async function main() {
         );
 
         if (backupAdmin) {
-            await linkToAdminsTable(backupAdmin, ADMIN_CONFIG.backup.name);
+            await linkToAdminsTable(backupAdmin, ADMIN_CONFIG.backup.name, ADMIN_CONFIG.backup.password);
         }
     }
 

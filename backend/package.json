@@ -2,10 +2,10 @@
   "name": "portfolio-backend",
   "version": "3.0.0",
   "description": "Backend for Md Azad's Portfolio Website - Powered by Supabase",
-  "main": "server.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node api/index.js",
+    "dev": "nodemon api/index.js"
   },
   "author": {
     "name": "MD Azad Ansari",
@@ -45,6 +45,6 @@
     "nodemon": "^3.0.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "24.x"
   }
 }

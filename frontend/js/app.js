@@ -1,5 +1,8 @@
-// Connect to Backend (Production Only)
+// Production Backend URL (Vercel)
 const API = 'https://backend-mu-sage.vercel.app/api';
+
+// Automatic Admin Redirect handled by serve.json (cleanUrls: true)
+// Removed manual redirect code to prevent infinite loops
 
 // State
 let allSkills = [], allProjects = [], allServices = [], allCerts = [];
@@ -419,9 +422,20 @@ async function loadSettings() {
 
 async function fetchData(endpoint) {
   try {
-    const res = await fetch(`${API}${endpoint}`);
-    return res.ok ? await res.json() : null;
-  } catch { return null; }
+    const url = `${API}${endpoint}`;
+    console.log(`🌐 Fetching: ${url}`);
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`⚠️ API Error [${res.status}] for ${endpoint}`);
+      return null;
+    }
+    const data = await res.json();
+    console.log(`✅ Received data for ${endpoint}:`, data);
+    return data;
+  } catch (err) {
+    console.error(`❌ Fetch failed for ${endpoint}:`, err);
+    return null;
+  }
 }
 
 async function loadProfile() {

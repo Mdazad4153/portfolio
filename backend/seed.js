@@ -14,7 +14,7 @@ async function seed() {
 
         // 1. Create Admin
         console.log('👤 Creating Admin...');
-        const hashedPassword = await bcrypt.hash('Admin@123', 12);
+        const hashedPassword = await bcrypt.hash('Admin@2024', 12);
         await supabase.from('admins').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         const { data: admin } = await supabase.from('admins').insert({
             email: 'azad79900@gmail.com',
@@ -188,7 +188,7 @@ async function seed() {
 
         console.log('\n🎉 Seed completed successfully!');
         console.log('\n📋 Summary:');
-        console.log('   - Admin: azad79900@gmail.com / Admin@123');
+        console.log('   - Admin: azad79900@gmail.com / Admin@2024');
         console.log('   - Skills:', skills.length);
         console.log('   - Education:', education.length);
         console.log('   - Projects:', projects.length);

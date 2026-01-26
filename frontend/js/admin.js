@@ -1,4 +1,4 @@
-// Connect to Backend (Production Only)
+// Production Backend URL (Vercel)
 const API = 'https://backend-mu-sage.vercel.app/api';
 let token = localStorage.getItem('adminToken');
 const PLACEHOLDER_IMAGE = 'assets/profile-placeholder.svg';

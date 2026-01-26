@@ -8,39 +8,41 @@ const supabaseKey = process.env.SUPABASE_SERVICE_KEY || ''; // Use service key f
 
 if (!supabaseUrl || !supabaseKey) {
     console.error('❌ CRITICAL: Missing Supabase credentials in environment variables!');
-    console.error('   Please set SUPABASE_URL and SUPABASE_SERVICE_KEY in your hosting (Vercel/Render) dashboard.');
 }
 
-// Ensure we don't pass empty strings to createClient if they are missing
-// but still create a dummy client if needed to prevent boot crash
-const supabase = (supabaseUrl && supabaseKey)
-    ? createClient(supabaseUrl, supabaseKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    })
-    : null;
+let supabase = null;
 
-// Test connection
+try {
+    // Only attempt to initialize if we have BOTH credentials and URL looks valid
+    if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('http')) {
+        supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        });
+    } else {
+        console.warn('⚠️ Supabase Initialization Skipped: Missing or invalid credentials.');
+    }
+} catch (error) {
+    console.error('❌ Supabase Client Initialization Failed:', error.message);
+    supabase = null;
+}
+
+// Test connection helper
 const testConnection = async () => {
     try {
-        if (!supabase) {
-            console.error('❌ Supabase client is not initialized. Check environment variables.');
-            return;
-        }
+        if (!supabase) return;
 
-        const { data, error } = await supabase.from('profiles').select('*').limit(1);
-
+        const { error } = await supabase.from('profiles').select('id').limit(1);
         if (error) {
-            console.error('❌ Supabase connection error:', error.message);
+            console.error('❌ Supabase Auth/Connection Error:', error.message);
         } else {
-            console.log('✅ Supabase Connected Successfully');
+            console.log('✅ Supabase Connection Verified');
         }
     } catch (err) {
-        console.error('❌ Supabase connection failed:', err.message);
+        console.error('❌ Supabase Test Connection Exception:', err.message);
     }
 };
 
-// Export supabase client and test function
 module.exports = { supabase, testConnection };
